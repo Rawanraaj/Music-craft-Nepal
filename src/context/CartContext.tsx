@@ -19,7 +19,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>(() => {
     try {
       const saved = localStorage.getItem('mcn-cart');
-      return saved ? JSON.parse(saved) : [];
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
@@ -27,7 +29,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem('mcn-cart', JSON.stringify(items));
+    try {
+      localStorage.setItem('mcn-cart', JSON.stringify(Array.isArray(items) ? items : []));
+    } catch {
+      // localStorage may be unavailable (e.g. private browsing quota exceeded)
+    }
   }, [items]);
 
   const addItem = (product: Product, quantity = 1) => {
@@ -63,9 +69,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const clearCart = () => setItems([]);
 
-  const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-  const totalPrice = items.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
+  const safeItems = Array.isArray(items) ? items : [];
+  const totalItems = safeItems.reduce((sum, item) => sum + (item.quantity ?? 0), 0);
+  const totalPrice = safeItems.reduce(
+    (sum, item) => sum + ((item.product?.price ?? 0) * (item.quantity ?? 0)),
     0
   );
 

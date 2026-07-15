@@ -44,9 +44,9 @@ export default function Admin() {
 
   if (!user || !user.isAdmin) return null;
 
-  const totalRevenue = MOCK_ORDERS.reduce((sum, o) => sum + o.total, 0);
-  const pendingOrders = MOCK_ORDERS.filter((o) => o.status === 'pending' || o.status === 'processing').length;
-  const newInquiries = MOCK_INQUIRIES.filter((i) => i.status === 'new').length;
+  const totalRevenue = (MOCK_ORDERS ?? []).reduce((sum, o) => sum + (o.total ?? 0), 0);
+  const pendingOrders = (MOCK_ORDERS ?? []).filter((o) => o.status === 'pending' || o.status === 'processing').length;
+  const newInquiries = (MOCK_INQUIRIES ?? []).filter((i) => i.status === 'new').length;
 
   const NAV_ITEMS = [
     { id: 'overview' as AdminTab, label: 'Overview', icon: LayoutDashboard },
