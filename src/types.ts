@@ -16,6 +16,9 @@ export interface Product {
   inStock: boolean;
   artisan?: string;
   region?: string;
+  stock_quantity: number;
+  low_stock_threshold: number;
+  variants: { name: string; options: string[] }[];
 }
 
 export interface CartItem {
@@ -24,6 +27,7 @@ export interface CartItem {
 }
 
 export interface User {
+  id: string;
   email: string;
   name: string;
   isAdmin: boolean;
@@ -31,13 +35,14 @@ export interface User {
 
 export interface Order {
   id: string;
+  user_id?: string;
   customerName: string;
   email: string;
   phone: string;
   address: string;
   items: CartItem[];
   total: number;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  status: 'Placed' | 'Confirmed' | 'Shipped' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
   date: string;
   paymentMethod: string;
 }
@@ -53,6 +58,16 @@ export interface WholesaleInquiry {
   quantity: string;
   message: string;
   status: 'new' | 'contacted' | 'closed';
+  date: string;
+}
+
+export interface Review {
+  id: string;
+  product_id: string;
+  user_id: string;
+  user_name: string;
+  rating: number;
+  comment: string;
   date: string;
 }
 

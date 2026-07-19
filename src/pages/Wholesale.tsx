@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Package, CheckCircle2, Truck, Percent, Headphones } from 'lucide-react';
-import { PRODUCTS } from '../data';
+import { createInquiry } from '../lib/api';
+import { CATEGORIES } from '../types';
 
 const BENEFITS = [
   { icon: Percent, title: 'Bulk Pricing', desc: 'Up to 40% off retail on orders over 20 units' },
@@ -11,6 +12,7 @@ const BENEFITS = [
 
 export default function Wholesale() {
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     businessName: '',
     contactName: '',
@@ -22,10 +24,28 @@ export default function Wholesale() {
     message: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
-    window.scrollTo(0, 0);
+    setLoading(true);
+    try {
+      await createInquiry({
+        businessName: formData.businessName,
+        contactName: formData.contactName,
+        email: formData.email,
+        phone: formData.phone,
+        city: formData.city,
+        products: formData.products,
+        quantity: formData.quantity || '10-20 units',
+        message: formData.message,
+      });
+      setSubmitted(true);
+      window.scrollTo(0, 0);
+    } catch (err) {
+      console.error('Error submitting inquiry:', err);
+      alert('Error submitting inquiry. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleProduct = (name: string) => {
@@ -170,7 +190,7 @@ export default function Wholesale() {
               <div>
                 <label className="block text-sm font-bold text-mcn-charcoal mb-2">Products of Interest</label>
                 <div className="flex flex-wrap gap-2">
-                  {[...new Set(PRODUCTS.map((p) => p.category))].map((cat) => (
+                  {CATEGORIES.filter((c) => c !== 'Wholesale' && c !== 'Deals').map((cat) => (
                     <button
                       key={cat}
                       type="button"
@@ -212,9 +232,10 @@ export default function Wholesale() {
               </div>
               <button
                 type="submit"
-                className="w-full h-12 bg-mcn-blue text-white font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors"
+                disabled={loading}
+                className="w-full h-12 bg-mcn-blue text-white font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors disabled:opacity-50"
               >
-                Submit Inquiry
+                {loading ? 'Submitting...' : 'Submit Inquiry'}
               </button>
             </form>
           </div>

@@ -2,7 +2,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { SlidersHorizontal, X, ChevronDown, Check } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
-import { PRODUCTS } from '../data';
+import { fetchProducts } from '../lib/api';
+import type { Product } from '../types';
 import { CATEGORIES } from '../types';
 
 const SORT_OPTIONS = [
@@ -25,6 +26,8 @@ export default function Shop() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const categoryParam = searchParams.get('category') || '';
   const queryParam = searchParams.get('q') || '';
@@ -35,6 +38,13 @@ export default function Shop() {
   const [selectedPriceRanges, setSelectedPriceRanges] = useState<string[]>([]);
 
   useEffect(() => {
+    fetchProducts()
+      .then(setProducts)
+      .catch((err) => console.error('Error fetching products:', err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
     if (priceParam) {
       setSelectedPriceRanges(priceParam.split(','));
     } else {
@@ -43,7 +53,7 @@ export default function Shop() {
   }, [priceParam]);
 
   const filteredProducts = useMemo(() => {
-    let result = [...PRODUCTS];
+    let result = [...products];
 
     // Category filter
     if (categoryParam) {
@@ -217,6 +227,17 @@ export default function Shop() {
       )}
     </div>
   );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-mcn-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-mcn-blue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-mcn-gray-500 font-bold">Loading shop...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white">

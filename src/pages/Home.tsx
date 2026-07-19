@@ -15,7 +15,8 @@ import {
   Wind,
 } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
-import { PRODUCTS } from '../data';
+import { fetchProducts } from '../lib/api';
+import type { Product } from '../types';
 
 const HERO_SLIDES = [
   {
@@ -59,6 +60,8 @@ const SERVICE_ICONS = [
 
 export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -67,11 +70,29 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    fetchProducts()
+      .then(setProducts)
+      .catch((err) => console.error('Error fetching products:', err))
+      .finally(() => setLoading(false));
+  }, []);
+
   const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
   const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + HERO_SLIDES.length) % HERO_SLIDES.length);
 
-  const newInstruments = PRODUCTS.filter((p) => p.badge === 'new' || p.badge === 'trending').slice(0, 6);
-  const trendingProducts = PRODUCTS.slice(0, 10);
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-mcn-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-mcn-blue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-mcn-gray-500 font-bold">Loading instruments...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const newInstruments = products.filter((p) => p.badge === 'new' || p.badge === 'trending').slice(0, 6);
+  const trendingProducts = products.slice(0, 10);
 
   return (
     <div>

@@ -2,10 +2,14 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckCircle2, Lock, Truck, BadgeCheck, CreditCard } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
+import { createOrder } from '../lib/api';
 
 export default function Checkout() {
   const { items, totalPrice, clearCart } = useCart();
+  const { user } = useAuth();
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -19,11 +23,30 @@ export default function Checkout() {
   const shipping = totalPrice >= 5000 ? 0 : 200;
   const grandTotal = totalPrice + shipping;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setOrderPlaced(true);
-    clearCart();
-    window.scrollTo(0, 0);
+    setLoading(true);
+    try {
+      await createOrder({
+        user_id: user?.id,
+        customerName: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        address: `${formData.address}, ${formData.city}, ${formData.province}`,
+        items: items,
+        total: grandTotal,
+        status: 'Placed',
+        paymentMethod: 'Cash on Delivery',
+      });
+      setOrderPlaced(true);
+      clearCart();
+      window.scrollTo(0, 0);
+    } catch (err) {
+      console.error('Error placing order:', err);
+      alert('Error placing order. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (orderPlaced) {
@@ -267,9 +290,10 @@ export default function Checkout() {
               </div>
               <button
                 type="submit"
-                className="w-full h-12 bg-mcn-blue text-white font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors"
+                disabled={loading}
+                className="w-full h-12 bg-mcn-blue text-white font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Place Order
+                {loading ? 'Processing...' : 'Place Order'}
               </button>
               <div className="flex items-center justify-center gap-4 mt-4 text-xs text-mcn-gray-500">
                 <span className="flex items-center gap-1">

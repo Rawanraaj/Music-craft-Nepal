@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useParams, Link, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Star,
   ShoppingCart,
@@ -13,25 +13,60 @@ import {
   Heart,
   Share2,
 } from 'lucide-react';
-import { PRODUCTS } from '../data';
+import { fetchProductBySlug, fetchProducts } from '../lib/api';
 import { useCart } from '../context/CartContext';
 import ProductCard from '../components/ProductCard';
+import type { Product } from '../types';
 
 export default function ProductDetail() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const { addItem } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const product = PRODUCTS.find((p) => p.slug === slug);
+  useEffect(() => {
+    if (!slug) return;
+    setLoading(true);
+    fetchProductBySlug(slug)
+      .then((data) => {
+        setProduct(data);
+        if (data) {
+          fetchProducts()
+            .then((all) => {
+              const related = all
+                .filter((p) => p.category === data.category && p.id !== data.id)
+                .slice(0, 4);
+              setRelatedProducts(related);
+            })
+            .catch(console.error);
+        }
+      })
+      .catch((err) => console.error('Error fetching product:', err))
+      .finally(() => setLoading(false));
+  }, [slug]);
 
-  if (!product) {
-    return <Navigate to="/shop" replace />;
+  useEffect(() => {
+    if (!loading && !product) {
+      navigate('/shop', { replace: true });
+    }
+  }, [loading, product, navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-mcn-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-mcn-blue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-mcn-gray-500 font-bold">Loading product details...</p>
+        </div>
+      </div>
+    );
   }
 
-  const relatedProducts = PRODUCTS.filter(
-    (p) => p.category === product.category && p.id !== product.id
-  ).slice(0, 4);
+  if (!product) return null;
 
   const discount = product.originalPrice
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)

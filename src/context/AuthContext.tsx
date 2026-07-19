@@ -1,93 +1,135 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { supabase } from '../lib/supabase';
 import type { User } from '../types';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => { success: boolean; isAdmin: boolean; error?: string };
-  register: (name: string, email: string, password: string) => { success: boolean; error?: string };
-  logout: () => void;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<{ success: boolean; isAdmin: boolean; error?: string }>;
+  register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: () => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// TODO: replace with real auth before production
-const ADMIN_EMAIL = 'admin@musiccraftnepal.com';
-const ADMIN_PASSWORD = 'MCN@Admin2026';
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    try {
-      const saved = localStorage.getItem('mcn-user');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const handleSession = async (session: any) => {
+    if (session?.user) {
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_admin, name')
+          .eq('id', session.user.id)
+          .single();
+
+        setUser({
+          id: session.user.id,
+          email: session.user.email || '',
+          name: profile?.name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
+          isAdmin: profile?.is_admin || false,
+        });
+      } catch {
+        setUser({
+          id: session.user.id,
+          email: session.user.email || '',
+          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
+          isAdmin: false,
+        });
+      }
+    } else {
+      setUser(null);
     }
-  });
+    setLoading(false);
+  };
 
   useEffect(() => {
-    if (user) {
-      localStorage.setItem('mcn-user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('mcn-user');
-    }
-  }, [user]);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      handleSession(session);
+    });
 
-  const login = (email: string, password: string) => {
-    const normalizedEmail = email.toLowerCase().trim();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      handleSession(session);
+    });
 
-    if (normalizedEmail === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-      const adminUser: User = {
-        email: ADMIN_EMAIL,
-        name: 'Admin',
-        isAdmin: true,
-      };
-      setUser(adminUser);
-      return { success: true, isAdmin: true };
-    }
+    return () => subscription.unsubscribe();
+  }, []);
 
-    // Regular user check from localStorage registry
+  const login = async (email: string, password: string) => {
     try {
-      const registry = JSON.parse(localStorage.getItem('mcn-registry') || '[]');
-      const found = registry.find(
-        (u: { email: string; password: string; name: string }) =>
-          u.email.toLowerCase() === normalizedEmail && u.password === password
-      );
-      if (found) {
-        setUser({ email: found.email, name: found.name, isAdmin: false });
-        return { success: true, isAdmin: false };
-      }
-    } catch {
-      // registry not available
-    }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.toLowerCase().trim(),
+        password,
+      });
 
-    return { success: false, isAdmin: false, error: 'Invalid email or password.' };
+      if (error) {
+        return { success: false, isAdmin: false, error: error.message };
+      }
+
+      if (data.session) {
+        // Fetch profile to see if user is an admin
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('id', data.session.user.id)
+          .single();
+
+        return { success: true, isAdmin: !!profile?.is_admin };
+      }
+
+      return { success: false, isAdmin: false, error: 'Login failed. Session not established.' };
+    } catch (err: any) {
+      return { success: false, isAdmin: false, error: err.message || 'An error occurred during login.' };
+    }
   };
 
-  const register = (name: string, email: string, password: string) => {
-    const normalizedEmail = email.toLowerCase().trim();
-
-    if (normalizedEmail === ADMIN_EMAIL) {
-      return { success: false, error: 'This email is reserved.' };
-    }
-
+  const register = async (name: string, email: string, password: string) => {
     try {
-      const registry = JSON.parse(localStorage.getItem('mcn-registry') || '[]');
-      if (registry.some((u: { email: string }) => u.email.toLowerCase() === normalizedEmail)) {
-        return { success: false, error: 'An account with this email already exists.' };
+      const { data, error } = await supabase.auth.signUp({
+        email: email.toLowerCase().trim(),
+        password,
+        options: {
+          data: {
+            name,
+          },
+          emailRedirectTo: `${window.location.origin}/login`,
+        },
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
       }
-      registry.push({ name, email: normalizedEmail, password });
-      localStorage.setItem('mcn-registry', JSON.stringify(registry));
-      setUser({ email: normalizedEmail, name, isAdmin: false });
+
+      if (data.user && data.session === null) {
+        return { success: true, error: 'Please check your email to verify your account.' };
+      }
+
       return { success: true };
-    } catch {
-      return { success: false, error: 'Registration failed. Please try again.' };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'An error occurred during registration.' };
     }
   };
 
-  const logout = () => setUser(null);
+  const loginWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
+    });
+    if (error) throw error;
+  };
+
+  const logout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+  };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, loginWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );
