@@ -15,10 +15,11 @@ import {
   Wind,
 } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
-import { fetchProducts } from '../lib/api';
+import { fetchProducts, fetchSiteContent } from '../lib/api';
 import type { Product } from '../types';
+import { useSEO } from '../hooks/useSEO';
 
-const HERO_SLIDES = [
+const HERO_SLIDES_DEFAULT = [
   {
     image: 'https://images.unsplash.com/photo-1465821185615-20b3c2fbf41b?auto=format&fit=crop&w=1600&q=80',
     title: 'The Sound of the Himalayas',
@@ -62,13 +63,31 @@ export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [slides, setSlides] = useState<any[]>(HERO_SLIDES_DEFAULT);
+
+  // SEO setup
+  useSEO({
+    title: 'Home',
+    description: 'Welcome to Music Craft Nepal. Discover high-quality, handcrafted traditional and modern Nepalese instruments.',
+    ogType: 'website'
+  });
+
+  useEffect(() => {
+    fetchSiteContent('hero_slides')
+      .then((data) => {
+        if (data && Array.isArray(data) && data.length > 0) {
+          setSlides(data);
+        }
+      })
+      .catch((err) => console.error('Error fetching hero slides:', err));
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
     }, 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [slides]);
 
   useEffect(() => {
     fetchProducts()
@@ -77,8 +96,8 @@ export default function Home() {
       .finally(() => setLoading(false));
   }, []);
 
-  const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
-  const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + HERO_SLIDES.length) % HERO_SLIDES.length);
+  const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % slides.length);
+  const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
 
   if (loading) {
     return (
@@ -98,7 +117,7 @@ export default function Home() {
     <div>
       {/* Hero Carousel */}
       <section className="relative h-[400px] md:h-[520px] overflow-hidden bg-mcn-dark">
-        {HERO_SLIDES.map((slide, idx) => (
+        {slides.map((slide, idx) => (
           <div
             key={idx}
             className={`absolute inset-0 transition-opacity duration-700 ${
@@ -145,7 +164,7 @@ export default function Home() {
 
         {/* Dots */}
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
-          {HERO_SLIDES.map((_, idx) => (
+          {slides.map((_, idx) => (
             <button
               key={idx}
               onClick={() => setCurrentSlide(idx)}

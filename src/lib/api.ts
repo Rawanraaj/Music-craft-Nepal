@@ -39,12 +39,14 @@ export function mapDbOrder(o: any): Order {
     address: o.address,
     total: Number(o.total),
     status: o.status,
-    date: o.created_at ? new Date(o.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    date: o.created_at || new Date().toISOString(),
     paymentMethod: o.payment_method,
     items: (o.order_items || []).map((item: any) => ({
       product: mapDbProduct(item.products),
       quantity: item.quantity,
+      selectedVariant: item.variant || undefined,
     })),
+    coupon_code: o.coupon_code || undefined,
   };
 }
 
@@ -221,6 +223,7 @@ export async function createOrder(order: Omit<Order, 'id' | 'date'>): Promise<Or
       total: order.total,
       status: 'Placed',
       payment_method: order.paymentMethod,
+      coupon_code: order.coupon_code || null,
     }]);
 
   if (orderError) throw orderError;
@@ -230,6 +233,7 @@ export async function createOrder(order: Omit<Order, 'id' | 'date'>): Promise<Or
     product_id: item.product.id,
     quantity: item.quantity,
     price_at_time: item.product.price,
+    variant: item.selectedVariant || null,
   }));
 
   const { error: itemsError } = await supabase
@@ -330,3 +334,172 @@ export async function createReview(review: Omit<Review, 'id' | 'date'>): Promise
   if (error) throw error;
   return mapDbReview(data);
 }
+
+// SITE CONTENT (CMS-LITE) API
+export async function fetchSiteContent(key: string): Promise<any | null> {
+  const { data, error } = await supabase
+    .from('site_content')
+    .select('value')
+    .eq('key', key)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? data.value : null;
+}
+
+export async function updateSiteContent(key: string, value: any): Promise<void> {
+  const { error } = await supabase
+    .from('site_content')
+    .upsert({ key, value });
+
+  if (error) throw error;
+}
+
+// COUPONS API
+export async function fetchCoupons(): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('coupons')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createCoupon(coupon: {
+  code: string;
+  discount_type: 'percent' | 'flat';
+  discount_value: number;
+  expiry_date: string;
+  active: boolean;
+  usage_limit?: number;
+}): Promise<any> {
+  const { data, error } = await supabase
+    .from('coupons')
+    .insert([{
+      code: coupon.code.toUpperCase(),
+      discount_type: coupon.discount_type,
+      discount_value: coupon.discount_value,
+      expiry_date: coupon.expiry_date,
+      active: coupon.active,
+      usage_limit: coupon.usage_limit || null,
+      used_count: 0
+    }])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function updateCoupon(code: string, coupon: Partial<{
+  discount_type: 'percent' | 'flat';
+  discount_value: number;
+  expiry_date: string;
+  active: boolean;
+  usage_limit: number | null;
+}>): Promise<any> {
+  const { data, error } = await supabase
+    .from('coupons')
+    .update(coupon)
+    .eq('code', code.toUpperCase())
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCoupon(code: string): Promise<void> {
+  const { error } = await supabase
+    .from('coupons')
+    .delete()
+    .eq('code', code.toUpperCase());
+
+  if (error) throw error;
+}
+
+export async function validateCoupon(code: string): Promise<any | null> {
+  const { data, error } = await supabase
+    .from('coupons')
+    .select('*')
+    .eq('code', code.toUpperCase())
+    .eq('active', true)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  // Check expiry
+  const expiry = new Date(data.expiry_date);
+  const now = new Date();
+  // Strip time for clean date-only comparison
+  expiry.setHours(23, 59, 59, 999);
+  if (now > expiry) return null;
+
+  // Check usage limit
+  if (data.usage_limit !== null && data.used_count >= data.usage_limit) return null;
+
+  return data;
+}
+
+export async function incrementCouponUsage(code: string): Promise<void> {
+  // Directly fetch, increment and update. RLS checks are handled.
+  const { data, error: fetchError } = await supabase
+    .from('coupons')
+    .select('used_count')
+    .eq('code', code.toUpperCase())
+    .single();
+    
+  if (fetchError) throw fetchError;
+  
+  const { error: updateError } = await supabase
+    .from('coupons')
+    .update({ used_count: (data.used_count || 0) + 1 })
+    .eq('code', code.toUpperCase());
+    
+  if (updateError) throw updateError;
+}
+
+// PUSH SUBSCRIPTIONS API
+export async function createPushSubscription(userId: string | null, subscriptionJson: any): Promise<void> {
+  const { error } = await supabase
+    .from('push_subscriptions')
+    .insert([{
+      user_id: userId,
+      subscription_json: subscriptionJson
+    }]);
+
+  if (error) throw error;
+}
+
+export async function fetchPushSubscriptions(): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('push_subscriptions')
+    .select('*');
+
+  if (error) throw error;
+  return data || [];
+}
+
+// SPECIFIC ORDER & CANCEL API
+export async function fetchOrderById(id: string): Promise<Order | null> {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*, order_items(*, products(*))')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? mapDbOrder(data) : null;
+}
+
+export async function cancelOrder(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('orders')
+    .update({ status: 'Cancelled' })
+    .eq('id', id);
+
+  if (error) throw error;
+}
+

@@ -24,6 +24,7 @@ export interface Product {
 export interface CartItem {
   product: Product;
   quantity: number;
+  selectedVariant?: string;
 }
 
 export interface User {
@@ -45,6 +46,7 @@ export interface Order {
   status: 'Placed' | 'Confirmed' | 'Shipped' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
   date: string;
   paymentMethod: string;
+  coupon_code?: string;
 }
 
 export interface WholesaleInquiry {

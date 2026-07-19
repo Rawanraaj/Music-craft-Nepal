@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
+import { LanguageProvider } from './context/LanguageContext';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Shop from './pages/Shop';
@@ -14,6 +15,7 @@ import Contact from './pages/Contact';
 import Login from './pages/Login';
 import Admin from './pages/Admin';
 import Articles from './pages/Articles';
+import MyOrders from './pages/MyOrders';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -49,6 +51,7 @@ function AppRoutes() {
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/articles" element={<Articles />} />
+        <Route path="/my-orders" element={<MyOrders />} />
       </Routes>
     </Layout>
   );
@@ -57,12 +60,14 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <CartProvider>
-        <BrowserRouter>
-          <ScrollToTop />
-          <AppRoutes />
-        </BrowserRouter>
-      </CartProvider>
+      <LanguageProvider>
+        <CartProvider>
+          <BrowserRouter>
+            <ScrollToTop />
+            <AppRoutes />
+          </BrowserRouter>
+        </CartProvider>
+      </LanguageProvider>
     </AuthProvider>
   );
 }

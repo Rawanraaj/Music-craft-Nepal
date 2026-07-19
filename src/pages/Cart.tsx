@@ -39,7 +39,7 @@ export default function Cart() {
           <div className="lg:col-span-2 space-y-4">
             {items.map((item) => (
               <div
-                key={item.product.id}
+                key={`${item.product.id}-${item.selectedVariant || ''}`}
                 className="bg-white rounded-xl border border-mcn-gray-200 p-4 flex gap-4"
               >
                 <Link to={`/product/${item.product.slug}`} className="shrink-0">
@@ -61,9 +61,14 @@ export default function Cart() {
                       >
                         {item.product.name}
                       </Link>
+                      {item.selectedVariant && (
+                        <p className="text-xs text-amber-500 font-semibold mt-1">
+                          Variant: {item.selectedVariant}
+                        </p>
+                      )}
                     </div>
                     <button
-                      onClick={() => removeItem(item.product.id)}
+                      onClick={() => removeItem(item.product.id, item.selectedVariant)}
                       className="text-mcn-gray-400 hover:text-mcn-red transition-colors shrink-0"
                       aria-label="Remove item"
                     >
@@ -73,7 +78,7 @@ export default function Cart() {
                   <div className="flex items-end justify-between mt-3">
                     <div className="flex items-center border-2 border-mcn-gray-300 rounded-lg">
                       <button
-                        onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                        onClick={() => updateQuantity(item.product.id, item.quantity - 1, item.selectedVariant)}
                         className="w-8 h-9 flex items-center justify-center hover:bg-mcn-gray-100 transition-colors"
                         aria-label="Decrease quantity"
                       >
@@ -81,7 +86,7 @@ export default function Cart() {
                       </button>
                       <span className="w-10 text-center text-sm font-bold">{item.quantity}</span>
                       <button
-                        onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                        onClick={() => updateQuantity(item.product.id, item.quantity + 1, item.selectedVariant)}
                         className="w-8 h-9 flex items-center justify-center hover:bg-mcn-gray-100 transition-colors"
                         aria-label="Increase quantity"
                       >

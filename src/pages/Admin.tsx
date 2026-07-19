@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -18,7 +18,20 @@ import {
   Upload,
   ArrowUp,
   ArrowDown,
+  Tag,
+  Download,
 } from 'lucide-react';
+import {
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import {
   fetchProducts,
@@ -30,11 +43,18 @@ import {
   uploadProductImage,
   updateOrderStatus,
   updateInquiryStatus,
+  fetchCoupons,
+  createCoupon,
+  updateCoupon,
+  deleteCoupon,
+  fetchSiteContent,
+  updateSiteContent,
 } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { CATEGORIES } from '../types';
 import type { Product, Order, WholesaleInquiry } from '../types';
 
-type AdminTab = 'overview' | 'products' | 'orders' | 'inquiries' | 'settings';
+type AdminTab = 'overview' | 'products' | 'orders' | 'inquiries' | 'coupons' | 'settings';
 
 const STATUS_COLORS: Record<string, string> = {
   // Orders
@@ -60,6 +80,7 @@ export default function Admin() {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [inquiries, setInquiries] = useState<WholesaleInquiry[]>([]);
+  const [coupons, setCoupons] = useState<any[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   // Form & CRUD States
@@ -85,21 +106,82 @@ export default function Admin() {
     images: [] as string[],
   });
 
+  // Coupons CRUD States
+  const [isCouponFormOpen, setIsCouponFormOpen] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<any | null>(null);
+  const [couponFields, setCouponFields] = useState({
+    code: '',
+    discount_type: 'percent' as 'percent' | 'flat',
+    discount_value: 0,
+    expiry_date: new Date().toISOString().split('T')[0],
+    active: true,
+    usage_limit: 0,
+  });
+
+  // CMS Settings States
+  const [cmsHeroSlides, setCmsHeroSlides] = useState<any[]>([]);
+  const [cmsAboutCopy, setCmsAboutCopy] = useState('');
+  const [cmsAboutImage, setCmsAboutImage] = useState('');
+  const [cmsContactDetails, setCmsContactDetails] = useState({
+    phone: '',
+    email: '',
+    hours: '',
+  });
+  const [settingsLoading, setSettingsLoading] = useState(false);
+
   const loadAllData = async () => {
     setLoadingData(true);
     try {
-      const [prodData, ordData, inqData] = await Promise.all([
+      const [prodData, ordData, inqData, coupData] = await Promise.all([
         fetchProducts(),
         fetchOrders(),
         fetchInquiries(),
+        fetchCoupons(),
       ]);
       setProducts(prodData);
       setOrders(ordData);
       setInquiries(inqData);
+      setCoupons(coupData);
     } catch (err) {
       console.error('Error fetching admin dashboard data:', err);
     } finally {
       setLoadingData(false);
+    }
+  };
+
+  const loadCmsData = async () => {
+    try {
+      const [slides, aboutCopy, aboutImg, contact] = await Promise.all([
+        fetchSiteContent('hero_slides'),
+        fetchSiteContent('about_us_copy'),
+        fetchSiteContent('about_story_image'),
+        fetchSiteContent('contact_details'),
+      ]);
+      if (slides) setCmsHeroSlides(slides);
+      if (aboutCopy) setCmsAboutCopy(aboutCopy);
+      if (aboutImg) setCmsAboutImage(aboutImg);
+      if (contact) setCmsContactDetails(contact);
+    } catch (err) {
+      console.error('Error loading CMS data:', err);
+    }
+  };
+
+  // RLS Dynamic mount check
+  const verifyAdminSecurity = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', user.id)
+        .single();
+      if (error || !data || !data.is_admin) {
+        console.error('Dynamically failed is_admin check!');
+        navigate('/');
+      }
+    } catch (err) {
+      console.error('Security verification check failed:', err);
+      navigate('/');
     }
   };
 
@@ -108,7 +190,20 @@ export default function Admin() {
       if (!user || !user.isAdmin) {
         navigate('/login');
       } else {
+        verifyAdminSecurity();
         loadAllData();
+        loadCmsData();
+
+        // Register Web Push notification subscription
+        import('../lib/pushNotifications')
+          .then(({ registerPushNotifications }) => {
+            registerPushNotifications(user.id).catch((err) => {
+              console.warn('Push registration declined or failed:', err);
+            });
+          })
+          .catch((err) => {
+            console.error('Error loading push notification module:', err);
+          });
       }
     }
   }, [user, authLoading, navigate]);
@@ -132,6 +227,176 @@ export default function Admin() {
     .reduce((sum, o) => sum + o.total, 0);
   const pendingOrders = orders.filter((o) => o.status === 'Placed' || o.status === 'Confirmed' || o.status === 'Shipped').length;
   const newInquiries = inquiries.filter((i) => i.status === 'new').length;
+
+  // Analytics Calculations
+  const salesData = useMemo(() => {
+    const daily: Record<string, number> = {};
+    orders
+      .filter((o) => o.status !== 'Cancelled')
+      .forEach((o) => {
+        const d = o.date ? o.date.split('T')[0] : 'Unknown';
+        daily[d] = (daily[d] || 0) + o.total;
+      });
+    return Object.keys(daily)
+      .sort()
+      .map((d) => ({ date: d, Revenue: daily[d] }));
+  }, [orders]);
+
+  const categoryData = useMemo(() => {
+    const sales: Record<string, number> = {};
+    orders
+      .filter((o) => o.status !== 'Cancelled')
+      .forEach((o) => {
+        o.items.forEach((item) => {
+          if (item.product) {
+            const cat = item.product.category || 'Other';
+            sales[cat] = (sales[cat] || 0) + item.quantity;
+          }
+        });
+      });
+    return Object.keys(sales).map((cat) => ({ category: cat, UnitsSold: sales[cat] }));
+  }, [orders]);
+
+  // CSV Exports
+  const exportOrdersCSV = () => {
+    const headers = ['Order ID', 'Customer Name', 'Email', 'Phone', 'Address', 'Total', 'Payment Method', 'Coupon Code', 'Status', 'Date'];
+    const rows = orders.map((o) => [
+      o.id,
+      o.customerName,
+      o.email,
+      o.phone,
+      o.address,
+      o.total,
+      o.paymentMethod,
+      o.coupon_code || '',
+      o.status,
+      o.date,
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' 
+      + [headers.join(','), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `orders_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportInquiriesCSV = () => {
+    const headers = ['Inquiry ID', 'Business Name', 'Contact Name', 'Email', 'Phone', 'City', 'Products', 'Quantity', 'Message', 'Status', 'Date'];
+    const rows = inquiries.map((i) => [
+      i.id,
+      i.businessName,
+      i.contactName,
+      i.email,
+      i.phone,
+      i.city,
+      i.products.join('; '),
+      i.quantity,
+      i.message,
+      i.status,
+      i.date,
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' 
+      + [headers.join(','), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `wholesale_inquiries_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Coupons CRUD Operations
+  const handleOpenAddCouponForm = () => {
+    setEditingCoupon(null);
+    setCouponFields({
+      code: '',
+      discount_type: 'percent',
+      discount_value: 0,
+      expiry_date: new Date().toISOString().split('T')[0],
+      active: true,
+      usage_limit: 0,
+    });
+    setIsCouponFormOpen(true);
+  };
+
+  const handleOpenEditCouponForm = (coupon: any) => {
+    setEditingCoupon(coupon);
+    setCouponFields({
+      code: coupon.code,
+      discount_type: coupon.discount_type,
+      discount_value: coupon.discount_value,
+      expiry_date: coupon.expiry_date,
+      active: coupon.active,
+      usage_limit: coupon.usage_limit || 0,
+    });
+    setIsCouponFormOpen(true);
+  };
+
+  const handleDeleteCouponItem = async (code: string) => {
+    if (window.confirm(`Are you sure you want to delete coupon ${code}?`)) {
+      try {
+        await deleteCoupon(code);
+        setCoupons((prev) => prev.filter((c) => c.code !== code));
+      } catch (err) {
+        console.error('Failed to delete coupon:', err);
+        alert('Failed to delete coupon.');
+      }
+    }
+  };
+
+  const handleSaveCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!couponFields.code) {
+      alert('Coupon code is required.');
+      return;
+    }
+    const cleanFields = {
+      code: couponFields.code.toUpperCase().trim(),
+      discount_type: couponFields.discount_type,
+      discount_value: Number(couponFields.discount_value),
+      expiry_date: couponFields.expiry_date,
+      active: couponFields.active,
+      usage_limit: couponFields.usage_limit > 0 ? Number(couponFields.usage_limit) : undefined,
+    };
+
+    try {
+      if (editingCoupon) {
+        const updated = await updateCoupon(editingCoupon.code, cleanFields);
+        setCoupons((prev) => prev.map((c) => (c.code === editingCoupon.code ? updated : c)));
+      } else {
+        const created = await createCoupon(cleanFields);
+        setCoupons((prev) => [created, ...prev]);
+      }
+      setIsCouponFormOpen(false);
+    } catch (err: any) {
+      console.error('Error saving coupon:', err);
+      alert(`Error saving coupon: ${err.message || 'Unknown error'}`);
+    }
+  };
+
+  // CMS Save Settings
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSettingsLoading(true);
+    try {
+      await Promise.all([
+        updateSiteContent('hero_slides', cmsHeroSlides),
+        updateSiteContent('about_us_copy', cmsAboutCopy),
+        updateSiteContent('about_story_image', cmsAboutImage),
+        updateSiteContent('contact_details', cmsContactDetails),
+      ]);
+      alert('CMS settings saved successfully!');
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+      alert('Failed to save settings.');
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
 
   // CRUD Operations
   const handleOpenAddForm = () => {
@@ -298,6 +563,7 @@ export default function Admin() {
     { id: 'products' as AdminTab, label: 'Products', icon: Package },
     { id: 'orders' as AdminTab, label: 'Orders', icon: ShoppingCart },
     { id: 'inquiries' as AdminTab, label: 'Wholesale Inquiries', icon: Mail },
+    { id: 'coupons' as AdminTab, label: 'Coupons', icon: Tag },
     { id: 'settings' as AdminTab, label: 'Settings', icon: Settings },
   ];
 
@@ -431,6 +697,59 @@ export default function Admin() {
                       <p className="text-xs text-mcn-gray-500 font-semibold mt-1">{stat.label}</p>
                     </div>
                   ))}
+                </div>
+
+                {/* Recharts Analytics Charts */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Revenue Trend */}
+                  <div className="bg-white rounded-xl border border-mcn-gray-200 p-5">
+                    <h3 className="text-sm font-extrabold text-mcn-charcoal mb-4">Revenue Trend</h3>
+                    <div className="h-72">
+                      {salesData.length === 0 ? (
+                        <div className="h-full flex items-center justify-center text-xs text-mcn-gray-400">
+                          No sales data yet
+                        </div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={salesData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#0B4F6C" stopOpacity={0.2}/>
+                                <stop offset="95%" stopColor="#0B4F6C" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                            <XAxis dataKey="date" stroke="#9CA3AF" fontSize={10} tickLine={false} />
+                            <YAxis stroke="#9CA3AF" fontSize={10} tickLine={false} axisLine={false} />
+                            <Tooltip formatter={(value) => [`Rs. ${Number(value).toLocaleString()}`, 'Revenue']} />
+                            <Area type="monotone" dataKey="Revenue" stroke="#0B4F6C" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Category Performance */}
+                  <div className="bg-white rounded-xl border border-mcn-gray-200 p-5">
+                    <h3 className="text-sm font-extrabold text-mcn-charcoal mb-4">Sales by Category</h3>
+                    <div className="h-72">
+                      {categoryData.length === 0 ? (
+                        <div className="h-full flex items-center justify-center text-xs text-mcn-gray-400">
+                          No category sales data yet
+                        </div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={categoryData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                            <XAxis dataKey="category" stroke="#9CA3AF" fontSize={10} tickLine={false} />
+                            <YAxis stroke="#9CA3AF" fontSize={10} tickLine={false} axisLine={false} />
+                            <Tooltip formatter={(value) => [value, 'Units Sold']} />
+                            <Bar dataKey="UnitsSold" fill="#20BF55" radius={[4, 4, 0, 0]} barSize={32} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Recent orders */}
@@ -583,8 +902,15 @@ export default function Admin() {
             {/* Orders Section */}
             {activeTab === 'orders' && (
               <div className="bg-white rounded-xl border border-mcn-gray-200 overflow-hidden">
-                <div className="p-5 border-b border-mcn-gray-200">
+                <div className="p-5 border-b border-mcn-gray-200 flex items-center justify-between">
                   <h2 className="text-base font-extrabold text-mcn-charcoal">All Orders ({orders.length})</h2>
+                  <button
+                    onClick={exportOrdersCSV}
+                    className="flex items-center gap-2 px-3 py-1.5 border-2 border-mcn-gray-300 text-mcn-charcoal text-xs font-bold rounded-lg hover:bg-mcn-gray-100 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Export CSV
+                  </button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
@@ -636,6 +962,16 @@ export default function Admin() {
             {/* Wholesale Inquiries Section */}
             {activeTab === 'inquiries' && (
               <div className="space-y-4">
+                <div className="flex items-center justify-between bg-white rounded-xl border border-mcn-gray-200 p-5">
+                  <h2 className="text-base font-extrabold text-mcn-charcoal">Wholesale Inquiries ({inquiries.length})</h2>
+                  <button
+                    onClick={exportInquiriesCSV}
+                    className="flex items-center gap-2 px-3 py-1.5 border-2 border-mcn-gray-300 text-mcn-charcoal text-xs font-bold rounded-lg hover:bg-mcn-gray-100 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Export CSV
+                  </button>
+                </div>
                 {inquiries.map((inquiry) => (
                   <div key={inquiry.id} className="bg-white rounded-xl border border-mcn-gray-200 p-5">
                     <div className="flex items-start justify-between gap-4 mb-3">
@@ -698,49 +1034,274 @@ export default function Admin() {
               </div>
             )}
 
+            {/* Coupons Section */}
+            {activeTab === 'coupons' && (
+              <div className="bg-white rounded-xl border border-mcn-gray-200 overflow-hidden">
+                <div className="flex items-center justify-between p-5 border-b border-mcn-gray-200">
+                  <h2 className="text-base font-extrabold text-mcn-charcoal">All Coupons ({coupons.length})</h2>
+                  <button
+                    onClick={handleOpenAddCouponForm}
+                    className="px-4 py-2 bg-mcn-blue text-white text-sm font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors"
+                  >
+                    + Add Coupon
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-mcn-gray-50 text-xs font-bold text-mcn-gray-500 uppercase tracking-wide">
+                        <th className="text-left px-5 py-3">Code</th>
+                        <th className="text-left px-5 py-3">Discount</th>
+                        <th className="text-left px-5 py-3">Expiry</th>
+                        <th className="text-left px-5 py-3">Usage</th>
+                        <th className="text-left px-5 py-3">Status</th>
+                        <th className="text-left px-5 py-3">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {coupons.map((coupon) => {
+                        const expired = new Date(coupon.expiry_date) < new Date();
+                        return (
+                          <tr key={coupon.code} className="border-t border-mcn-gray-100 hover:bg-mcn-gray-50 transition-colors">
+                            <td className="px-5 py-3 text-sm font-extrabold text-mcn-charcoal uppercase">{coupon.code}</td>
+                            <td className="px-5 py-3 text-sm text-mcn-gray-600">
+                              {coupon.discount_type === 'percent' ? `${coupon.discount_value}%` : `Rs. ${coupon.discount_value}`}
+                            </td>
+                            <td className="px-5 py-3 text-sm text-mcn-gray-500">
+                              {coupon.expiry_date} {expired && <span className="text-mcn-red text-xs font-bold ml-1">(Expired)</span>}
+                            </td>
+                            <td className="px-5 py-3 text-sm text-mcn-gray-500">
+                              {coupon.used_count} / {coupon.usage_limit || '∞'}
+                            </td>
+                            <td className="px-5 py-3">
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${coupon.active && !expired ? 'bg-mcn-mint/20 text-mcn-mint-dark' : 'bg-red-100 text-red-700'}`}>
+                                {coupon.active && !expired ? 'Active' : 'Inactive'}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3">
+                              <div className="flex items-center gap-3">
+                                <button
+                                  onClick={() => handleOpenEditCouponForm(coupon)}
+                                  className="text-mcn-blue hover:text-mcn-blue-dark transition-colors"
+                                  aria-label="Edit coupon"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteCouponItem(coupon.code)}
+                                  className="text-mcn-red hover:text-red-700 transition-colors"
+                                  aria-label="Delete coupon"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {coupons.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="text-center py-8 text-sm text-mcn-gray-400">
+                            No coupons found. Click "+ Add Coupon" to create one.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* Settings Tab */}
             {activeTab === 'settings' && (
-              <div className="max-w-2xl space-y-6">
-                <div className="bg-white rounded-xl border border-mcn-gray-200 p-6">
-                  <h2 className="text-lg font-extrabold text-mcn-charcoal mb-4">Store Settings</h2>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-bold text-mcn-charcoal mb-1">Store Name</label>
-                      <input
-                        type="text"
-                        defaultValue="Music Craft Nepal"
-                        className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
-                      />
+              <div className="max-w-4xl space-y-6">
+                {/* Store & Contact Information */}
+                <form onSubmit={handleSaveSettings} className="space-y-6">
+                  <div className="bg-white rounded-xl border border-mcn-gray-200 p-6">
+                    <h2 className="text-lg font-extrabold text-mcn-charcoal mb-4">Contact & Hours Settings</h2>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-mcn-charcoal mb-1">Contact Email</label>
+                        <input
+                          type="email"
+                          required
+                          value={cmsContactDetails.email || ''}
+                          onChange={(e) => setCmsContactDetails(prev => ({ ...prev, email: e.target.value }))}
+                          className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-mcn-charcoal mb-1">Phone Number</label>
+                        <input
+                          type="text"
+                          required
+                          value={cmsContactDetails.phone || ''}
+                          onChange={(e) => setCmsContactDetails(prev => ({ ...prev, phone: e.target.value }))}
+                          className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-bold text-mcn-charcoal mb-1">Working Hours</label>
+                        <input
+                          type="text"
+                          required
+                          value={cmsContactDetails.hours || ''}
+                          onChange={(e) => setCmsContactDetails(prev => ({ ...prev, hours: e.target.value }))}
+                          placeholder="e.g. Sunday - Friday, 9:00 AM - 6:00 PM"
+                          className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-bold text-mcn-charcoal mb-1">Contact Email</label>
-                      <input
-                        type="email"
-                        defaultValue="hello@musiccraftnepal.com"
-                        className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-mcn-charcoal mb-1">Phone</label>
-                      <input
-                        type="tel"
-                        defaultValue="01-4123456"
-                        className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-mcn-charcoal mb-1">Free Shipping Threshold (Rs.)</label>
-                      <input
-                        type="number"
-                        defaultValue="5000"
-                        className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
-                      />
-                    </div>
-                    <button className="px-6 py-2.5 bg-mcn-blue text-white text-sm font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors">
-                      Save Changes
-                    </button>
                   </div>
-                </div>
+
+                  {/* About Us Page Copy */}
+                  <div className="bg-white rounded-xl border border-mcn-gray-200 p-6">
+                    <h2 className="text-lg font-extrabold text-mcn-charcoal mb-4">About Us Copy</h2>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-bold text-mcn-charcoal mb-1">Story / Content Text</label>
+                        <textarea
+                          rows={6}
+                          required
+                          value={cmsAboutCopy || ''}
+                          onChange={(e) => setCmsAboutCopy(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-mcn-charcoal mb-1">Story Image URL</label>
+                        <input
+                          type="text"
+                          required
+                          value={cmsAboutImage || ''}
+                          onChange={(e) => setCmsAboutImage(e.target.value)}
+                          className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Hero Carousel Slides */}
+                  <div className="bg-white rounded-xl border border-mcn-gray-200 p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-lg font-extrabold text-mcn-charcoal">Hero Slides Carousel</h2>
+                      <button
+                        type="button"
+                        onClick={() => setCmsHeroSlides(prev => [...prev, { image: '', title: '', subtitle: '', buttonText: 'Shop Now', buttonLink: '/shop' }])}
+                        className="text-sm text-mcn-blue font-bold hover:underline"
+                      >
+                        + Add Slide
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-6">
+                      {cmsHeroSlides.map((slide, idx) => (
+                        <div key={idx} className="border border-mcn-gray-200 rounded-xl p-4 relative space-y-4">
+                          <div className="absolute top-4 right-4 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newSlides = cmsHeroSlides.filter((_, i) => i !== idx);
+                                setCmsHeroSlides(newSlides);
+                              }}
+                              className="text-xs text-mcn-red font-bold hover:underline"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          
+                          <h3 className="text-sm font-bold text-mcn-charcoal">Slide #{idx + 1}</h3>
+                          
+                          <div className="grid sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-bold text-mcn-gray-500 mb-1">Title</label>
+                              <input
+                                type="text"
+                                required
+                                value={slide.title || ''}
+                                onChange={(e) => {
+                                  const newSlides = [...cmsHeroSlides];
+                                  newSlides[idx].title = e.target.value;
+                                  setCmsHeroSlides(newSlides);
+                                }}
+                                className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-mcn-gray-500 mb-1">Subtitle</label>
+                              <input
+                                type="text"
+                                required
+                                value={slide.subtitle || ''}
+                                onChange={(e) => {
+                                  const newSlides = [...cmsHeroSlides];
+                                  newSlides[idx].subtitle = e.target.value;
+                                  setCmsHeroSlides(newSlides);
+                                }}
+                                className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-mcn-gray-500 mb-1">Image URL</label>
+                              <input
+                                type="text"
+                                required
+                                value={slide.image || ''}
+                                onChange={(e) => {
+                                  const newSlides = [...cmsHeroSlides];
+                                  newSlides[idx].image = e.target.value;
+                                  setCmsHeroSlides(newSlides);
+                                }}
+                                className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-xs"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-xs font-bold text-mcn-gray-500 mb-1">Button Text</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={slide.buttonText || ''}
+                                  onChange={(e) => {
+                                    const newSlides = [...cmsHeroSlides];
+                                    newSlides[idx].buttonText = e.target.value;
+                                    setCmsHeroSlides(newSlides);
+                                  }}
+                                  className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-mcn-gray-500 mb-1">Button Link</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={slide.buttonLink || ''}
+                                  onChange={(e) => {
+                                    const newSlides = [...cmsHeroSlides];
+                                    newSlides[idx].buttonLink = e.target.value;
+                                    setCmsHeroSlides(newSlides);
+                                  }}
+                                  className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-xs"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {cmsHeroSlides.length === 0 && (
+                        <p className="text-center py-4 text-xs text-mcn-gray-400">No slides configured. Default slides will be shown on home page.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={settingsLoading}
+                    className="px-6 py-2.5 bg-mcn-blue text-white text-sm font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors disabled:opacity-50"
+                  >
+                    {settingsLoading ? 'Saving...' : 'Save Settings'}
+                  </button>
+                </form>
               </div>
             )}
           </main>
@@ -1140,6 +1701,115 @@ export default function Admin() {
                   className="px-5 py-2.5 bg-mcn-blue text-white text-sm font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors"
                 >
                   {editingProduct ? 'Save Changes' : 'Create Product'}
+                </button>
+              </footer>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Slide-over Form for Add / Edit Coupon */}
+      {isCouponFormOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setIsCouponFormOpen(false)} />
+          <div className="absolute inset-y-0 right-0 max-w-full flex">
+            <div className="w-screen max-w-md bg-white shadow-2xl flex flex-col">
+              <header className="px-6 py-5 bg-mcn-dark text-white flex items-center justify-between">
+                <h2 className="text-lg font-extrabold">{editingCoupon ? 'Edit Coupon' : 'Add New Coupon'}</h2>
+                <button onClick={() => setIsCouponFormOpen(false)} className="text-white hover:text-mcn-red transition-colors">
+                  <X className="w-6 h-6" />
+                </button>
+              </header>
+
+              <form onSubmit={handleSaveCoupon} className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-mcn-charcoal mb-1">Coupon Code * (Uppercase, no spaces)</label>
+                    <input
+                      required
+                      type="text"
+                      disabled={!!editingCoupon}
+                      value={couponFields.code}
+                      onChange={(e) => setCouponFields((prev) => ({ ...prev, code: e.target.value.toUpperCase().replace(/\s+/g, '') }))}
+                      className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm font-extrabold uppercase disabled:bg-mcn-gray-100"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-mcn-charcoal mb-1">Discount Type *</label>
+                    <select
+                      value={couponFields.discount_type}
+                      onChange={(e) => setCouponFields((prev) => ({ ...prev, discount_type: e.target.value as any }))}
+                      className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm bg-white"
+                    >
+                      <option value="percent">Percentage (%)</option>
+                      <option value="flat">Flat Amount (Rs.)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-mcn-charcoal mb-1">Discount Value *</label>
+                    <input
+                      required
+                      type="number"
+                      min={1}
+                      value={couponFields.discount_value || ''}
+                      onChange={(e) => setCouponFields((prev) => ({ ...prev, discount_value: Number(e.target.value) }))}
+                      className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-mcn-charcoal mb-1">Expiry Date *</label>
+                    <input
+                      required
+                      type="date"
+                      value={couponFields.expiry_date}
+                      onChange={(e) => setCouponFields((prev) => ({ ...prev, expiry_date: e.target.value }))}
+                      className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-mcn-charcoal mb-1">Usage Limit (0 for unlimited)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={couponFields.usage_limit || ''}
+                      onChange={(e) => setCouponFields((prev) => ({ ...prev, usage_limit: Number(e.target.value) }))}
+                      className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2">
+                    <input
+                      type="checkbox"
+                      id="coupon-active"
+                      checked={couponFields.active}
+                      onChange={(e) => setCouponFields((prev) => ({ ...prev, active: e.target.checked }))}
+                      className="w-4 h-4 text-mcn-blue border-mcn-gray-300 rounded focus:ring-mcn-blue"
+                    />
+                    <label htmlFor="coupon-active" className="text-xs font-bold text-mcn-charcoal">
+                      Active (Allow checkout validation)
+                    </label>
+                  </div>
+                </div>
+              </form>
+
+              <footer className="px-6 py-4 bg-mcn-gray-50 border-t border-mcn-gray-200 flex gap-3 justify-end shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsCouponFormOpen(false)}
+                  className="px-5 py-2.5 border border-mcn-gray-300 text-mcn-charcoal text-sm font-bold rounded-lg hover:bg-mcn-gray-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveCoupon}
+                  className="px-5 py-2.5 bg-mcn-blue text-white text-sm font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors"
+                >
+                  {editingCoupon ? 'Save Changes' : 'Create Coupon'}
                 </button>
               </footer>
             </div>

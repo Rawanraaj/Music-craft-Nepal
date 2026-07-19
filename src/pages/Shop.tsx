@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { SlidersHorizontal, X, ChevronDown, Check } from 'lucide-react';
+import { SlidersHorizontal, X, ChevronDown } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 import { fetchProducts } from '../lib/api';
 import type { Product } from '../types';
 import { CATEGORIES } from '../types';
+import { useSEO } from '../hooks/useSEO';
 
 const SORT_OPTIONS = [
   { value: 'featured', label: 'Featured' },
@@ -14,18 +15,11 @@ const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest' },
 ];
 
-const PRICE_RANGES = [
-  { label: 'Under Rs. 2,000', min: 0, max: 2000 },
-  { label: 'Rs. 2,000 - Rs. 5,000', min: 2000, max: 5000 },
-  { label: 'Rs. 5,000 - Rs. 10,000', min: 5000, max: 10000 },
-  { label: 'Rs. 10,000 - Rs. 20,000', min: 10000, max: 20000 },
-  { label: 'Over Rs. 20,000', min: 20000, max: Infinity },
-];
-
 export default function Shop() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
+  
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -33,9 +27,19 @@ export default function Shop() {
   const queryParam = searchParams.get('q') || '';
   const dealsParam = searchParams.get('deals') === 'true';
   const sortParam = searchParams.get('sort') || 'featured';
-  const priceParam = searchParams.get('price') || '';
 
-  const [selectedPriceRanges, setSelectedPriceRanges] = useState<string[]>([]);
+  // Filters State
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [minPrice, setMinPrice] = useState<string>('');
+  const [maxPrice, setMaxPrice] = useState<string>('');
+  const [selectedArtisans, setSelectedArtisans] = useState<string[]>([]);
+  const [inStockOnly, setInStockOnly] = useState<boolean>(false);
+
+  // SEO
+  useSEO({
+    title: 'Shop Premium Instruments',
+    description: 'Explore high-quality, handcrafted traditional and modern musical instruments from Nepal.'
+  });
 
   useEffect(() => {
     fetchProducts()
@@ -44,21 +48,23 @@ export default function Shop() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Sync category param from URL to state checkbox
   useEffect(() => {
-    if (priceParam) {
-      setSelectedPriceRanges(priceParam.split(','));
+    if (categoryParam) {
+      setSelectedCategories([categoryParam]);
     } else {
-      setSelectedPriceRanges([]);
+      setSelectedCategories([]);
     }
-  }, [priceParam]);
+  }, [categoryParam]);
+
+  // Extract unique artisans from loaded products list
+  const uniqueArtisans = useMemo(() => {
+    const list = products.map((p) => p.artisan).filter(Boolean) as string[];
+    return Array.from(new Set(list));
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     let result = [...products];
-
-    // Category filter
-    if (categoryParam) {
-      result = result.filter((p) => p.category === categoryParam);
-    }
 
     // Search query
     if (queryParam) {
@@ -71,19 +77,32 @@ export default function Shop() {
       );
     }
 
+    // Category filter (checkbox multi-selection)
+    if (selectedCategories.length > 0) {
+      result = result.filter((p) => selectedCategories.includes(p.category));
+    }
+
+    // Price range filters
+    if (minPrice) {
+      result = result.filter((p) => p.price >= Number(minPrice));
+    }
+    if (maxPrice) {
+      result = result.filter((p) => p.price <= Number(maxPrice));
+    }
+
+    // Artisan filter
+    if (selectedArtisans.length > 0) {
+      result = result.filter((p) => p.artisan && selectedArtisans.includes(p.artisan));
+    }
+
+    // In Stock Only
+    if (inStockOnly) {
+      result = result.filter((p) => p.inStock);
+    }
+
     // Deals filter
     if (dealsParam) {
       result = result.filter((p) => p.originalPrice && p.originalPrice > p.price);
-    }
-
-    // Price filter
-    if (selectedPriceRanges.length > 0) {
-      result = result.filter((p) =>
-        selectedPriceRanges.some((rangeIdx) => {
-          const range = PRICE_RANGES[parseInt(rangeIdx)];
-          return p.price >= range.min && p.price < range.max;
-        })
-      );
     }
 
     // Sort
@@ -103,17 +122,7 @@ export default function Shop() {
     }
 
     return result;
-  }, [categoryParam, queryParam, dealsParam, sortParam, selectedPriceRanges]);
-
-  const updateCategory = (cat: string) => {
-    const params = new URLSearchParams(searchParams);
-    if (cat) {
-      params.set('category', cat);
-    } else {
-      params.delete('category');
-    }
-    setSearchParams(params);
-  };
+  }, [products, queryParam, selectedCategories, minPrice, maxPrice, selectedArtisans, inStockOnly, dealsParam, sortParam]);
 
   const updateSort = (sort: string) => {
     const params = new URLSearchParams(searchParams);
@@ -122,105 +131,130 @@ export default function Shop() {
     setSortOpen(false);
   };
 
-  const togglePriceRange = (idx: number) => {
-    const idxStr = idx.toString();
-    const newRanges = selectedPriceRanges.includes(idxStr)
-      ? selectedPriceRanges.filter((r) => r !== idxStr)
-      : [...selectedPriceRanges, idxStr];
+  const toggleCategory = (cat: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+    );
+  };
 
-    const params = new URLSearchParams(searchParams);
-    if (newRanges.length > 0) {
-      params.set('price', newRanges.join(','));
-    } else {
-      params.delete('price');
-    }
-    setSearchParams(params);
+  const toggleArtisan = (art: string) => {
+    setSelectedArtisans((prev) =>
+      prev.includes(art) ? prev.filter((a) => a !== art) : [...prev, art]
+    );
   };
 
   const clearFilters = () => {
+    setSelectedCategories([]);
+    setSelectedArtisans([]);
+    setMinPrice('');
+    setMaxPrice('');
+    setInStockOnly(false);
     setSearchParams({});
-    setSelectedPriceRanges([]);
   };
 
-  const hasActiveFilters = categoryParam || queryParam || dealsParam || selectedPriceRanges.length > 0;
+  const hasActiveFilters =
+    selectedCategories.length > 0 ||
+    selectedArtisans.length > 0 ||
+    minPrice !== '' ||
+    maxPrice !== '' ||
+    inStockOnly;
 
   const heading = dealsParam
     ? 'Deals & Offers'
     : queryParam
     ? `Search: "${queryParam}"`
-    : categoryParam || 'All Instruments';
+    : 'All Instruments';
 
   const FilterContent = () => (
-    <div className="space-y-6">
-      {/* Categories */}
+    <div className="space-y-6 bg-white p-4 rounded-xl border border-mcn-gray-200">
+      {/* Category Checkboxes */}
       <div>
-        <h3 className="text-sm font-extrabold text-mcn-charcoal uppercase tracking-wide mb-3">
+        <h3 className="text-sm font-extrabold text-mcn-charcoal uppercase tracking-wider mb-3">
           Categories
         </h3>
-        <ul className="space-y-1">
-          <li>
-            <button
-              onClick={() => updateCategory('')}
-              className={`w-full text-left px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
-                !categoryParam
-                  ? 'bg-mcn-blue text-white'
-                  : 'text-mcn-gray-600 hover:bg-mcn-gray-100'
-              }`}
-            >
-              All Instruments
-            </button>
-          </li>
-          {CATEGORIES.filter((c) => c !== 'Wholesale' && c !== 'Deals').map((cat) => (
-            <li key={cat}>
-              <button
-                onClick={() => updateCategory(cat)}
-                className={`w-full text-left px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
-                  categoryParam === cat
-                    ? 'bg-mcn-blue text-white'
-                    : 'text-mcn-gray-600 hover:bg-mcn-gray-100'
-                }`}
-              >
+        <div className="space-y-2">
+          {CATEGORIES.filter((c) => c !== 'Wholesale' && c !== 'Deals').map((cat) => {
+            const isChecked = selectedCategories.includes(cat);
+            return (
+              <label key={cat} className="flex items-center gap-2.5 cursor-pointer text-sm font-semibold text-mcn-gray-600 hover:text-mcn-charcoal">
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => toggleCategory(cat)}
+                  className="rounded border-mcn-gray-300 text-mcn-blue focus:ring-mcn-blue h-4 w-4"
+                />
                 {cat}
-              </button>
-            </li>
-          ))}
-        </ul>
+              </label>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Price */}
+      {/* Price Range inputs */}
       <div>
-        <h3 className="text-sm font-extrabold text-mcn-charcoal uppercase tracking-wide mb-3">
-          Price Range
+        <h3 className="text-sm font-extrabold text-mcn-charcoal uppercase tracking-wider mb-3">
+          Price (Rs.)
         </h3>
-        <ul className="space-y-1">
-          {PRICE_RANGES.map((range, idx) => (
-            <li key={idx}>
-              <button
-                onClick={() => togglePriceRange(idx)}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-mcn-gray-600 hover:bg-mcn-gray-100 transition-colors"
-              >
-                <span
-                  className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-                    selectedPriceRanges.includes(idx.toString())
-                      ? 'bg-mcn-blue border-mcn-blue'
-                      : 'border-mcn-gray-300'
-                  }`}
-                >
-                  {selectedPriceRanges.includes(idx.toString()) && (
-                    <Check className="w-3 h-3 text-white" />
-                  )}
-                </span>
-                {range.label}
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="flex gap-2">
+          <input
+            type="number"
+            placeholder="Min"
+            value={minPrice}
+            onChange={(e) => setMinPrice(e.target.value)}
+            className="w-1/2 rounded-lg border border-mcn-gray-350 px-3 py-2 text-xs focus:ring-1 focus:ring-mcn-blue outline-none"
+          />
+          <input
+            type="number"
+            placeholder="Max"
+            value={maxPrice}
+            onChange={(e) => setMaxPrice(e.target.value)}
+            className="w-1/2 rounded-lg border border-mcn-gray-350 px-3 py-2 text-xs focus:ring-1 focus:ring-mcn-blue outline-none"
+          />
+        </div>
+      </div>
+
+      {/* Artisans Checkboxes */}
+      {uniqueArtisans.length > 0 && (
+        <div>
+          <h3 className="text-sm font-extrabold text-mcn-charcoal uppercase tracking-wider mb-3">
+            Artisan / Maker
+          </h3>
+          <div className="space-y-2">
+            {uniqueArtisans.map((art) => {
+              const isChecked = selectedArtisans.includes(art);
+              return (
+                <label key={art} className="flex items-center gap-2.5 cursor-pointer text-sm font-semibold text-mcn-gray-600 hover:text-mcn-charcoal">
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleArtisan(art)}
+                    className="rounded border-mcn-gray-300 text-mcn-blue focus:ring-mcn-blue h-4 w-4"
+                  />
+                  {art}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* In Stock toggle */}
+      <div className="pt-2">
+        <label className="flex items-center gap-2.5 cursor-pointer text-sm font-bold text-mcn-charcoal">
+          <input
+            type="checkbox"
+            checked={inStockOnly}
+            onChange={(e) => setInStockOnly(e.target.checked)}
+            className="rounded border-mcn-gray-300 text-mcn-blue focus:ring-mcn-blue h-4 w-4"
+          />
+          In Stock Only
+        </label>
       </div>
 
       {hasActiveFilters && (
         <button
           onClick={clearFilters}
-          className="w-full px-4 py-2.5 border-2 border-mcn-gray-300 text-mcn-charcoal text-sm font-bold rounded-lg hover:bg-mcn-gray-50 transition-colors"
+          className="w-full py-2.5 bg-mcn-gray-100 hover:bg-mcn-gray-200 text-mcn-charcoal text-xs font-bold rounded-lg border border-mcn-gray-300 transition-colors"
         >
           Clear All Filters
         </button>
@@ -233,7 +267,7 @@ export default function Shop() {
       <div className="min-h-screen bg-mcn-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-mcn-blue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-mcn-gray-500 font-bold">Loading shop...</p>
+          <p className="text-mcn-gray-500 font-bold">Loading instruments...</p>
         </div>
       </div>
     );
@@ -261,7 +295,6 @@ export default function Shop() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Mobile filter button */}
             <button
               onClick={() => setMobileFiltersOpen(true)}
               className="lg:hidden flex items-center gap-2 px-4 py-2.5 border-2 border-mcn-gray-300 rounded-lg text-sm font-bold text-mcn-charcoal hover:bg-mcn-gray-50 transition-colors"
@@ -270,7 +303,6 @@ export default function Shop() {
               Filters
             </button>
 
-            {/* Sort dropdown */}
             <div className="relative">
               <button
                 onClick={() => setSortOpen(!sortOpen)}
@@ -304,19 +336,19 @@ export default function Shop() {
         </div>
 
         <div className="flex gap-8">
-          {/* Desktop sidebar */}
+          {/* Desktop Filters Sidebar */}
           <aside className="hidden lg:block w-64 shrink-0">
             <div className="sticky top-28">
               <FilterContent />
             </div>
           </aside>
 
-          {/* Products grid */}
+          {/* Products Grid */}
           <div className="flex-1">
             {filteredProducts.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
-                <p className="text-lg font-bold text-mcn-charcoal mb-2">No products found</p>
-                <p className="text-sm text-mcn-gray-500 mb-6">Try adjusting your filters or search.</p>
+                <p className="text-lg font-bold text-mcn-charcoal mb-2">No products match your criteria</p>
+                <p className="text-sm text-mcn-gray-500 mb-6">Try relaxing your price filters or checking other categories.</p>
                 <button
                   onClick={clearFilters}
                   className="px-6 py-3 bg-mcn-blue text-white font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors"
@@ -335,7 +367,7 @@ export default function Shop() {
         </div>
       </div>
 
-      {/* Mobile filter drawer */}
+      {/* Mobile Filters Drawer */}
       {mobileFiltersOpen && (
         <div className="fixed inset-0 z-[60] lg:hidden">
           <div

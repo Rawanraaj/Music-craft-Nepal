@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { CheckCircle2, Lock, Truck, BadgeCheck, CreditCard } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
-import { createOrder } from '../lib/api';
+import { createOrder, validateCoupon, incrementCouponUsage } from '../lib/api';
 
 export default function Checkout() {
   const { items, totalPrice, clearCart } = useCart();
@@ -20,8 +20,50 @@ export default function Checkout() {
     notes: '',
   });
 
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<any | null>(null);
+  const [couponError, setCouponError] = useState('');
+  const [applying, setApplying] = useState(false);
+
   const shipping = totalPrice >= 5000 ? 0 : 200;
-  const grandTotal = totalPrice + shipping;
+  
+  let discountAmount = 0;
+  if (appliedCoupon) {
+    if (appliedCoupon.discount_type === 'percent') {
+      discountAmount = Math.round((totalPrice * appliedCoupon.discount_value) / 100);
+    } else {
+      discountAmount = appliedCoupon.discount_value;
+    }
+  }
+  const grandTotal = Math.max(0, totalPrice + shipping - discountAmount);
+
+  const handleApplyCoupon = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!couponCode.trim()) return;
+    setApplying(true);
+    setCouponError('');
+    try {
+      const coupon = await validateCoupon(couponCode.trim());
+      if (coupon) {
+        setAppliedCoupon(coupon);
+      } else {
+        setCouponError('Invalid, inactive, or expired coupon code.');
+        setAppliedCoupon(null);
+      }
+    } catch (err) {
+      console.error('Error validating coupon:', err);
+      setCouponError('Error validating coupon. Please try again.');
+      setAppliedCoupon(null);
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode('');
+    setCouponError('');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +79,17 @@ export default function Checkout() {
         total: grandTotal,
         status: 'Placed',
         paymentMethod: 'Cash on Delivery',
+        coupon_code: appliedCoupon?.code || undefined,
       });
+
+      if (appliedCoupon) {
+        try {
+          await incrementCouponUsage(appliedCoupon.code);
+        } catch (couponUseErr) {
+          console.error('Error incrementing coupon usage:', couponUseErr);
+        }
+      }
+
       setOrderPlaced(true);
       clearCart();
       window.scrollTo(0, 0);
@@ -254,7 +306,7 @@ export default function Checkout() {
               <h2 className="text-lg font-extrabold text-mcn-charcoal mb-4">Your Order</h2>
               <ul className="space-y-3 pb-4 border-b border-mcn-gray-200">
                 {items.map((item) => (
-                  <li key={item.product.id} className="flex gap-3">
+                  <li key={`${item.product.id}-${item.selectedVariant || ''}`} className="flex gap-3">
                     <img
                       src={item.product.images[0]}
                       alt={item.product.name}
@@ -262,6 +314,11 @@ export default function Checkout() {
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-mcn-charcoal line-clamp-1">{item.product.name}</p>
+                      {item.selectedVariant && (
+                        <p className="text-xs text-mcn-blue font-semibold mt-0.5">
+                          Variant: {item.selectedVariant}
+                        </p>
+                      )}
                       <p className="text-xs text-mcn-gray-500">Qty: {item.quantity}</p>
                     </div>
                     <span className="text-sm font-bold text-mcn-charcoal shrink-0">
@@ -270,11 +327,63 @@ export default function Checkout() {
                   </li>
                 ))}
               </ul>
+
+              {/* Coupon Code section */}
+              <div className="py-4 border-b border-mcn-gray-200">
+                <label className="block text-xs font-bold text-mcn-charcoal uppercase tracking-wider mb-2">
+                  Have a coupon?
+                </label>
+                {appliedCoupon ? (
+                  <div className="flex items-center justify-between bg-mcn-mint/10 border border-mcn-mint/30 rounded-lg p-2.5">
+                    <div className="text-xs text-mcn-mint-dark">
+                      <span className="font-bold">{appliedCoupon.code}</span> applied ({appliedCoupon.discount_type === 'percent' ? `${appliedCoupon.discount_value}%` : `Rs. ${appliedCoupon.discount_value}`} off)
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveCoupon}
+                      className="text-xs font-bold text-mcn-red hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={couponCode}
+                        onChange={(e) => {
+                          setCouponCode(e.target.value);
+                          setCouponError('');
+                        }}
+                        placeholder="ENTER CODE"
+                        className="flex-1 min-w-0 h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm uppercase font-semibold"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyCoupon}
+                        disabled={applying || !couponCode.trim()}
+                        className="px-4 bg-mcn-charcoal hover:bg-mcn-blue text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {applying ? '...' : 'Apply'}
+                      </button>
+                    </div>
+                    {couponError && <p className="text-xs text-mcn-red mt-1.5 font-semibold">{couponError}</p>}
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-2 py-4 border-b border-mcn-gray-200">
                 <div className="flex justify-between text-sm">
                   <span className="text-mcn-gray-600">Subtotal</span>
                   <span className="font-bold text-mcn-charcoal">Rs. {totalPrice.toLocaleString()}</span>
                 </div>
+                {appliedCoupon && (
+                  <div className="flex justify-between text-sm text-mcn-mint-dark">
+                    <span>Discount ({appliedCoupon.code})</span>
+                    <span className="font-bold">- Rs. {discountAmount.toLocaleString()}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-mcn-gray-600">Shipping</span>
                   <span className="font-bold text-mcn-charcoal">

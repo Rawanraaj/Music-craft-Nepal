@@ -1,12 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MapPin, Phone, Mail, Clock, Send, CheckCircle2 } from 'lucide-react';
-
-const CONTACT_INFO = [
-  { icon: MapPin, label: 'Address', value: 'Bhotahity, Kathmandu, Nepal' },
-  { icon: Phone, label: 'Phone', value: '01-4123456' },
-  { icon: Mail, label: 'Email', value: 'hello@musiccraftnepal.com' },
-  { icon: Clock, label: 'Hours', value: 'Sun-Fri: 10AM - 6PM' },
-];
+import { fetchSiteContent } from '../lib/api';
 
 export default function Contact() {
   const [submitted, setSubmitted] = useState(false);
@@ -18,10 +12,42 @@ export default function Contact() {
     message: '',
   });
 
+  const [contactInfo, setContactInfo] = useState({
+    address: 'Bhotahity, Kathmandu, Nepal',
+    phone: '01-4123456',
+    email: 'hello@musiccraftnepal.com',
+    hours: 'Sun-Fri: 10AM - 6PM',
+  });
+
+  useEffect(() => {
+    fetchSiteContent('contact_content')
+      .then((data) => {
+        if (data) {
+          setContactInfo((prev) => ({ ...prev, ...data }));
+        }
+      })
+      .catch((err) => console.error('Error fetching contact content:', err));
+
+    fetchSiteContent('contact_details')
+      .then((data) => {
+        if (data) {
+          setContactInfo((prev) => ({ ...prev, ...data }));
+        }
+      })
+      .catch((err) => console.error('Error fetching contact details:', err));
+  }, []);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
   };
+
+  const infoList = [
+    { icon: MapPin, label: 'Address', value: contactInfo.address },
+    { icon: Phone, label: 'Phone', value: contactInfo.phone },
+    { icon: Mail, label: 'Email', value: contactInfo.email },
+    { icon: Clock, label: 'Hours', value: contactInfo.hours },
+  ];
 
   return (
     <div className="bg-white">
@@ -39,7 +65,7 @@ export default function Contact() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Contact info */}
           <div className="space-y-4">
-            {CONTACT_INFO.map((info) => (
+            {infoList.map((info) => (
               <div key={info.label} className="flex items-start gap-3 p-4 rounded-xl border border-mcn-gray-200 hover:shadow-md transition-shadow">
                 <div className="w-10 h-10 rounded-lg bg-mcn-blue/10 flex items-center justify-center shrink-0">
                   <info.icon className="w-5 h-5 text-mcn-blue" />

@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Music, Mail, Phone, MapPin, Facebook, Instagram, Youtube, Twitter } from 'lucide-react';
+import { fetchSiteContent } from '../lib/api';
 
 const FOOTER_LINKS = {
   Shop: [
@@ -25,6 +27,35 @@ const FOOTER_LINKS = {
 };
 
 export default function Footer() {
+  const [content, setContent] = useState({
+    aboutText: 'Handcrafted Nepali musical instruments made by master artisans. Delivering the sound of the Himalayas nationwide.',
+    facebookUrl: '#',
+    instagramUrl: '#',
+    youtubeUrl: '#',
+    twitterUrl: '#',
+    address: 'Bhotahity, Kathmandu, Nepal',
+    phone: '01-4123456',
+    email: 'hello@musiccraftnepal.com',
+  });
+
+  useEffect(() => {
+    fetchSiteContent('footer_content')
+      .then((data) => {
+        if (data) {
+          setContent((prev) => ({ ...prev, ...data }));
+        }
+      })
+      .catch((err) => console.error('Error fetching footer content:', err));
+
+    fetchSiteContent('contact_details')
+      .then((data) => {
+        if (data) {
+          setContent((prev) => ({ ...prev, ...data }));
+        }
+      })
+      .catch((err) => console.error('Error fetching contact details:', err));
+  }, []);
+
   return (
     <footer className="bg-mcn-dark text-white">
       {/* Newsletter band */}
@@ -71,19 +102,19 @@ export default function Footer() {
               </div>
             </Link>
             <p className="text-sm text-mcn-gray-400 leading-relaxed mb-4">
-              Handcrafted Nepali musical instruments made by master artisans. Delivering the sound of the Himalayas nationwide.
+              {content.aboutText}
             </p>
             <div className="flex items-center gap-3">
-              <a href="#" aria-label="Facebook" className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors">
+              <a href={content.facebookUrl} target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors">
                 <Facebook className="w-4 h-4" />
               </a>
-              <a href="#" aria-label="Instagram" className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors">
+              <a href={content.instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors">
                 <Instagram className="w-4 h-4" />
               </a>
-              <a href="#" aria-label="YouTube" className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors">
+              <a href={content.youtubeUrl} target="_blank" rel="noopener noreferrer" aria-label="YouTube" className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors">
                 <Youtube className="w-4 h-4" />
               </a>
-              <a href="#" aria-label="Twitter" className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors">
+              <a href={content.twitterUrl} target="_blank" rel="noopener noreferrer" aria-label="Twitter" className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors">
                 <Twitter className="w-4 h-4" />
               </a>
             </div>
@@ -114,15 +145,15 @@ export default function Footer() {
             <ul className="space-y-3">
               <li className="flex items-start gap-2 text-sm text-mcn-gray-400">
                 <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-mcn-mint" />
-                <span>Bhotahity, Kathmandu, Nepal</span>
+                <span>{content.address}</span>
               </li>
               <li className="flex items-center gap-2 text-sm text-mcn-gray-400">
                 <Phone className="w-4 h-4 shrink-0 text-mcn-mint" />
-                <a href="tel:014123456" className="hover:text-white transition-colors">01-4123456</a>
+                <a href={`tel:${content.phone.replace(/[^0-9]/g, '')}`} className="hover:text-white transition-colors">{content.phone}</a>
               </li>
               <li className="flex items-center gap-2 text-sm text-mcn-gray-400">
                 <Mail className="w-4 h-4 shrink-0 text-mcn-mint" />
-                <a href="mailto:hello@musiccraftnepal.com" className="hover:text-white transition-colors">hello@musiccraftnepal.com</a>
+                <a href={`mailto:${content.email}`} className="hover:text-white transition-colors">{content.email}</a>
               </li>
             </ul>
           </div>

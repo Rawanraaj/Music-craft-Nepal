@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Music, Heart, Award, Globe, Users, ArrowRight, Hammer } from 'lucide-react';
+import { fetchSiteContent } from '../lib/api';
 
 const VALUES = [
   { icon: Hammer, title: 'Authentic Craftsmanship', desc: 'Every instrument is hand-built by master artisans using traditional methods passed down through generations.' },
@@ -16,12 +18,53 @@ const STATS = [
 ];
 
 export default function About() {
+  const [content, setContent] = useState<any>({
+    heroTitle: 'Our Story',
+    heroSubtitle: "Bringing the sound of Nepal's mountains to musicians across the country.",
+    heroImage: 'https://images.unsplash.com/photo-1729527110458-950587b5494c?auto=format&fit=crop&w=1600&q=80',
+    storyHeading: "From a Small Workshop to Nepal's Trusted Instrument Maker",
+    storyParagraphs: [
+      "Music Craft Nepal began in 2014 in a small workshop in Bhotahity, Kathmandu. Our founder, Ram Sharan Nepali, grew up watching his father craft sarangis and sitars by hand. After decades of seeing traditional Nepali instruments fade in favor of imported goods, he decided to build a brand that would celebrate and sustain the craft.",
+      "What started as a one-man workshop has grown into a collective of over 30 master artisans across Nepal — from drum makers in Kavre to flute makers in Dharan, from guitar builders in Pokhara to cymbal forgers in Patan. Each artisan brings their region's unique traditions and techniques to every instrument they create.",
+      "Today, Music Craft Nepal serves thousands of musicians, schools, and cultural organizations nationwide. We remain committed to our founding principles: authentic craftsmanship, fair treatment of artisans, and making quality Nepali instruments accessible to everyone."
+    ],
+    spotlightTitle: 'The Hands Behind the Music',
+    spotlightText: "Our artisans are the heart of Music Craft Nepal. Many learned their craft from their parents and grandparents, preserving techniques that date back centuries. We work directly with each maker, providing materials, fair compensation, and a platform to share their work with the world.",
+    spotlightImage: 'https://images.unsplash.com/photo-1694632157646-3a7292b82b0c?auto=format&fit=crop&w=800&q=80'
+  });
+
+  useEffect(() => {
+    fetchSiteContent('about_content')
+      .then((data) => {
+        if (data) {
+          setContent((prev: any) => ({ ...prev, ...data }));
+        }
+      })
+      .catch((err) => console.error('Error fetching about content:', err));
+
+    fetchSiteContent('about_us_copy')
+      .then((data) => {
+        if (data && typeof data === 'string') {
+          setContent((prev: any) => ({ ...prev, storyParagraphs: data.split('\n\n') }));
+        }
+      })
+      .catch((err) => console.error('Error fetching about us copy:', err));
+
+    fetchSiteContent('about_story_image')
+      .then((data) => {
+        if (data && typeof data === 'string') {
+          setContent((prev: any) => ({ ...prev, spotlightImage: data }));
+        }
+      })
+      .catch((err) => console.error('Error fetching about story image:', err));
+  }, []);
+
   return (
     <div className="bg-white">
       {/* Hero */}
       <section className="relative h-[320px] md:h-[420px] overflow-hidden bg-mcn-dark">
         <img
-          src="https://images.unsplash.com/photo-1729527110458-950587b5494c?auto=format&fit=crop&w=1600&q=80"
+          src={content.heroImage}
           alt="Nepali artisan crafting an instrument"
           className="w-full h-full object-cover opacity-60"
         />
@@ -30,9 +73,9 @@ export default function About() {
             <div className="w-14 h-14 rounded-lg bg-mcn-blue flex items-center justify-center mx-auto mb-4">
               <Music className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-3xl md:text-5xl font-extrabold text-white mb-3">Our Story</h1>
+            <h1 className="text-3xl md:text-5xl font-extrabold text-white mb-3">{content.heroTitle}</h1>
             <p className="text-lg text-white/90">
-              Bringing the sound of Nepal's mountains to musicians across the country.
+              {content.heroSubtitle}
             </p>
           </div>
         </div>
@@ -42,26 +85,16 @@ export default function About() {
       <section className="py-12 md:py-16">
         <div className="max-w-3xl mx-auto px-4">
           <h2 className="text-2xl md:text-3xl font-extrabold text-mcn-charcoal mb-4">
-            From a Small Workshop to Nepal's Trusted Instrument Maker
+            {content.storyHeading}
           </h2>
           <div className="space-y-4 text-sm md:text-base text-mcn-gray-600 leading-relaxed">
-            <p>
-              Music Craft Nepal began in 2014 in a small workshop in Bhotahity, Kathmandu. Our founder,
-              Ram Sharan Nepali, grew up watching his father craft sarangis and sitars by hand. After
-              decades of seeing traditional Nepali instruments fade in favor of imported goods, he
-              decided to build a brand that would celebrate and sustain the craft.
-            </p>
-            <p>
-              What started as a one-man workshop has grown into a collective of over 30 master artisans
-              across Nepal — from drum makers in Kavre to flute makers in Dharan, from guitar builders in
-              Pokhara to cymbal forgers in Patan. Each artisan brings their region's unique traditions
-              and techniques to every instrument they create.
-            </p>
-            <p>
-              Today, Music Craft Nepal serves thousands of musicians, schools, and cultural organizations
-              nationwide. We remain committed to our founding principles: authentic craftsmanship, fair
-              treatment of artisans, and making quality Nepali instruments accessible to everyone.
-            </p>
+            {Array.isArray(content.storyParagraphs) ? (
+              content.storyParagraphs.map((para: string, idx: number) => (
+                <p key={idx}>{para}</p>
+              ))
+            ) : (
+              <p>{content.storyParagraphs}</p>
+            )}
           </div>
         </div>
       </section>
@@ -104,9 +137,9 @@ export default function About() {
       <section className="py-12 md:py-16">
         <div className="max-w-7xl mx-auto px-4">
           <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div className="rounded-2xl overflow-hidden">
+            <div className="rounded-2xl overflow-hidden aspect-[4/3] bg-mcn-gray-50 border border-mcn-gray-250">
               <img
-                src="https://images.unsplash.com/photo-1694632157646-3a7292b82b0c?auto=format&fit=crop&w=800&q=80"
+                src={content.spotlightImage}
                 alt="Artisan at work"
                 className="w-full h-full object-cover"
               />
@@ -114,13 +147,10 @@ export default function About() {
             <div>
               <span className="text-sm font-bold text-mcn-mint-dark uppercase tracking-wider">Artisan Spotlight</span>
               <h2 className="text-2xl md:text-3xl font-extrabold text-mcn-charcoal mt-2 mb-4">
-                The Hands Behind the Music
+                {content.spotlightTitle}
               </h2>
               <p className="text-sm md:text-base text-mcn-gray-600 leading-relaxed mb-6">
-                Our artisans are the heart of Music Craft Nepal. Many learned their craft from their
-                parents and grandparents, preserving techniques that date back centuries. We work
-                directly with each maker, providing materials, fair compensation, and a platform to
-                share their work with the world.
+                {content.spotlightText}
               </p>
               <div className="flex items-center gap-4 p-4 bg-mcn-gray-50 rounded-xl">
                 <div className="w-12 h-12 rounded-full bg-mcn-blue flex items-center justify-center shrink-0">
