@@ -73,6 +73,19 @@ export interface Review {
   date: string;
 }
 
+export interface Article {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  content: string;
+  image: string;
+  author: string;
+  date: string;
+  readTime: string;
+  category: string;
+}
+
 export const CATEGORIES = [
   'Guitars',
   'Traditional Instruments',
@@ -86,3 +99,4 @@ export const CATEGORIES = [
 ] as const;
 
 export type Category = (typeof CATEGORIES)[number];
+

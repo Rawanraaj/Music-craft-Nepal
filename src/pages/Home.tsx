@@ -59,11 +59,25 @@ const SERVICE_ICONS = [
   { icon: ShieldCheck, title: 'Quality Checked', desc: 'Every instrument tested' },
 ];
 
+import { useLanguage } from '../context/LanguageContext';
+
+const DEFAULT_PROMO_BANNER = {
+  enabled: true,
+  badge: { en: 'LIMITED TIME', ne: 'सीमित समय' },
+  headline: { en: 'Monsoon Sale — Up to 30% Off', ne: 'मनसुन अफर — ३०% सम्म छुट' },
+  subcopy: { en: 'Save on select traditional instruments. Handcrafted quality, unbeatable prices.', ne: 'नेपाली मौलिक बाजाहरूमा विशेष छुट।' },
+  discountPercent: 30,
+  buttonText: { en: 'Shop Deals', ne: 'अफर हेर्नुहोस्' },
+  buttonLink: '/shop?deals=true',
+};
+
 export default function Home() {
+  const { t, tCms } = useLanguage();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [slides, setSlides] = useState<any[]>(HERO_SLIDES_DEFAULT);
+  const [promoBanner, setPromoBanner] = useState<any>(DEFAULT_PROMO_BANNER);
 
   // SEO setup
   useSEO({
@@ -80,6 +94,14 @@ export default function Home() {
         }
       })
       .catch((err) => console.error('Error fetching hero slides:', err));
+
+    fetchSiteContent('promo_banner')
+      .then((data) => {
+        if (data) {
+          setPromoBanner(data);
+        }
+      })
+      .catch((err) => console.error('Error fetching promo banner:', err));
   }, []);
 
   useEffect(() => {
@@ -124,20 +146,20 @@ export default function Home() {
               idx === currentSlide ? 'opacity-100' : 'opacity-0 pointer-events-none'
             }`}
           >
-            <img src={slide.image} alt={slide.title} className="w-full h-full object-cover" />
+            <img src={slide.image} alt={tCms(slide.title)} className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent" />
             <div className="absolute inset-0 flex items-center">
               <div className="max-w-7xl mx-auto px-4 w-full">
                 <div className="max-w-xl">
                   <h1 className="text-3xl md:text-5xl font-extrabold text-white mb-3 leading-tight">
-                    {slide.title}
+                    {tCms(slide.title)}
                   </h1>
-                  <p className="text-lg md:text-xl text-white/90 mb-6">{slide.subtitle}</p>
+                  <p className="text-lg md:text-xl text-white/90 mb-6">{tCms(slide.subtitle)}</p>
                   <Link
-                    to={slide.link}
+                    to={slide.link || '/shop'}
                     className="inline-flex items-center gap-2 px-7 py-3.5 bg-mcn-blue text-white font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors text-base"
                   >
-                    {slide.cta}
+                    {tCms(slide.cta)}
                     <ArrowRight className="w-5 h-5" />
                   </Link>
                 </div>
@@ -196,44 +218,50 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Mint-green promo circle callout */}
-      <section className="py-12 md:py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="relative bg-mcn-mint rounded-2xl overflow-hidden p-8 md:p-12">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-8">
-              <div className="text-center md:text-left">
-                <span className="inline-block bg-mcn-dark text-mcn-mint text-xs font-bold px-3 py-1 rounded-full mb-3">
-                  LIMITED TIME
-                </span>
-                <h2 className="text-2xl md:text-4xl font-extrabold text-mcn-dark mb-2">
-                  Monsoon Sale — Up to 30% Off
-                </h2>
-                <p className="text-mcn-dark/80 text-base md:text-lg mb-6 max-w-md">
-                  Save on select traditional instruments. Handcrafted quality, unbeatable prices.
-                </p>
-                <Link
-                  to="/shop?deals=true"
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-mcn-dark text-white font-bold rounded-lg hover:bg-mcn-charcoal transition-colors"
-                >
-                  Shop Deals
-                  <ArrowRight className="w-5 h-5" />
-                </Link>
-              </div>
-              {/* Decorative circle */}
-              <div className="relative w-48 h-48 md:w-64 md:h-64 shrink-0">
-                <div className="absolute inset-0 rounded-full bg-white/30 flex items-center justify-center">
-                  <div className="w-32 h-32 md:w-44 md:h-44 rounded-full bg-white flex items-center justify-center shadow-lg">
-                    <div className="text-center">
-                      <span className="block text-4xl md:text-6xl font-extrabold text-mcn-mint-dark">30%</span>
-                      <span className="block text-sm md:text-base font-bold text-mcn-dark uppercase tracking-wide">OFF</span>
+      {/* Dynamic Promo Banner */}
+      {promoBanner && promoBanner.enabled !== false && (
+        <section className="py-12 md:py-16 bg-white">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="relative bg-mcn-mint rounded-2xl overflow-hidden p-8 md:p-12">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+                <div className="text-center md:text-left">
+                  <span className="inline-block bg-mcn-dark text-mcn-mint text-xs font-bold px-3 py-1 rounded-full mb-3">
+                    {tCms(promoBanner.badge, 'LIMITED TIME')}
+                  </span>
+                  <h2 className="text-2xl md:text-4xl font-extrabold text-mcn-dark mb-2">
+                    {tCms(promoBanner.headline, 'Monsoon Sale — Up to 30% Off')}
+                  </h2>
+                  <p className="text-mcn-dark/80 text-base md:text-lg mb-6 max-w-md">
+                    {tCms(promoBanner.subcopy, 'Save on select traditional instruments.')}
+                  </p>
+                  <Link
+                    to={promoBanner.buttonLink || '/shop?deals=true'}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-mcn-dark text-white font-bold rounded-lg hover:bg-mcn-charcoal transition-colors"
+                  >
+                    {tCms(promoBanner.buttonText, 'Shop Deals')}
+                    <ArrowRight className="w-5 h-5" />
+                  </Link>
+                </div>
+                {/* Decorative circle */}
+                <div className="relative w-48 h-48 md:w-64 md:h-64 shrink-0">
+                  <div className="absolute inset-0 rounded-full bg-white/30 flex items-center justify-center">
+                    <div className="w-32 h-32 md:w-44 md:h-44 rounded-full bg-white flex items-center justify-center shadow-lg">
+                      <div className="text-center">
+                        <span className="block text-4xl md:text-6xl font-extrabold text-mcn-mint-dark">
+                          {promoBanner.discountPercent || 30}%
+                        </span>
+                        <span className="block text-sm md:text-base font-bold text-mcn-dark uppercase tracking-wide">
+                          OFF
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Trending categories grid */}
       <section className="py-12 md:py-16 bg-mcn-gray-50">

@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Product, Order, WholesaleInquiry, Review } from '../types';
+import type { Product, Order, WholesaleInquiry, Review, Article } from '../types';
 
 // Helper to map DB Product to Frontend Product
 export function mapDbProduct(p: any): Product {
@@ -502,4 +502,91 @@ export async function cancelOrder(id: string): Promise<void> {
 
   if (error) throw error;
 }
+
+// ARTICLES API
+export function mapDbArticle(a: any): Article {
+  return {
+    id: a.id,
+    title: a.title,
+    slug: a.slug,
+    excerpt: a.excerpt,
+    content: a.content || '',
+    image: a.image,
+    author: a.author,
+    date: a.date ? (typeof a.date === 'string' && a.date.includes('T') ? a.date.split('T')[0] : a.date) : '',
+    readTime: a.read_time || a.readTime || '5 min',
+    category: a.category,
+  };
+}
+
+export async function fetchArticles(): Promise<Article[]> {
+  const { data, error } = await supabase
+    .from('articles')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data || []).map(mapDbArticle);
+}
+
+export async function fetchArticleBySlug(slug: string): Promise<Article | null> {
+  const { data, error } = await supabase
+    .from('articles')
+    .select('*')
+    .eq('slug', slug)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? mapDbArticle(data) : null;
+}
+
+export async function createArticle(article: Omit<Article, 'id'>): Promise<Article> {
+  const { data, error } = await supabase
+    .from('articles')
+    .insert([{
+      title: article.title,
+      slug: article.slug,
+      excerpt: article.excerpt,
+      content: article.content,
+      image: article.image,
+      author: article.author,
+      date: article.date,
+      read_time: article.readTime,
+      category: article.category,
+    }])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return mapDbArticle(data);
+}
+
+export async function updateArticle(id: string, article: Partial<Article>): Promise<Article> {
+  const updates: any = {};
+  if (article.title !== undefined) updates.title = article.title;
+  if (article.slug !== undefined) updates.slug = article.slug;
+  if (article.excerpt !== undefined) updates.excerpt = article.excerpt;
+  if (article.content !== undefined) updates.content = article.content;
+  if (article.image !== undefined) updates.image = article.image;
+  if (article.author !== undefined) updates.author = article.author;
+  if (article.date !== undefined) updates.date = article.date;
+  if (article.readTime !== undefined) updates.read_time = article.readTime;
+  if (article.category !== undefined) updates.category = article.category;
+
+  const { data, error } = await supabase
+    .from('articles')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return mapDbArticle(data);
+}
+
+export async function deleteArticle(id: string): Promise<void> {
+  const { error } = await supabase.from('articles').delete().eq('id', id);
+  if (error) throw error;
+}
+
 

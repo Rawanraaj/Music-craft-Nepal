@@ -26,8 +26,11 @@ const FOOTER_LINKS = {
   ],
 };
 
+import { useLanguage } from '../context/LanguageContext';
+
 export default function Footer() {
-  const [content, setContent] = useState({
+  const { t, tCms } = useLanguage();
+  const [content, setContent] = useState<any>({
     aboutText: 'Handcrafted Nepali musical instruments made by master artisans. Delivering the sound of the Himalayas nationwide.',
     facebookUrl: '#',
     instagramUrl: '#',
@@ -102,7 +105,7 @@ export default function Footer() {
               </div>
             </Link>
             <p className="text-sm text-mcn-gray-400 leading-relaxed mb-4">
-              {content.aboutText}
+              {tCms(content.aboutText)}
             </p>
             <div className="flex items-center gap-3">
               <a href={content.facebookUrl} target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors">

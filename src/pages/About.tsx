@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Music, Heart, Award, Globe, Users, ArrowRight, Hammer } from 'lucide-react';
 import { fetchSiteContent } from '../lib/api';
 
+import { useLanguage } from '../context/LanguageContext';
+
 const VALUES = [
   { icon: Hammer, title: 'Authentic Craftsmanship', desc: 'Every instrument is hand-built by master artisans using traditional methods passed down through generations.' },
   { icon: Heart, title: 'Fair Trade', desc: 'We pay our artisans fair wages and ensure safe working conditions. Your purchase directly supports Nepali families.' },
@@ -18,6 +20,7 @@ const STATS = [
 ];
 
 export default function About() {
+  const { t, tCms } = useLanguage();
   const [content, setContent] = useState<any>({
     heroTitle: 'Our Story',
     heroSubtitle: "Bringing the sound of Nepal's mountains to musicians across the country.",
@@ -44,8 +47,12 @@ export default function About() {
 
     fetchSiteContent('about_us_copy')
       .then((data) => {
-        if (data && typeof data === 'string') {
-          setContent((prev: any) => ({ ...prev, storyParagraphs: data.split('\n\n') }));
+        if (data) {
+          if (typeof data === 'string') {
+            setContent((prev: any) => ({ ...prev, storyParagraphs: data.split('\n\n') }));
+          } else if (typeof data === 'object') {
+            setContent((prev: any) => ({ ...prev, aboutUsCopyObj: data }));
+          }
         }
       })
       .catch((err) => console.error('Error fetching about us copy:', err));
@@ -88,7 +95,11 @@ export default function About() {
             {content.storyHeading}
           </h2>
           <div className="space-y-4 text-sm md:text-base text-mcn-gray-600 leading-relaxed">
-            {Array.isArray(content.storyParagraphs) ? (
+            {content.aboutUsCopyObj ? (
+              tCms(content.aboutUsCopyObj).split('\n\n').map((para: string, idx: number) => (
+                <p key={idx}>{para}</p>
+              ))
+            ) : Array.isArray(content.storyParagraphs) ? (
               content.storyParagraphs.map((para: string, idx: number) => (
                 <p key={idx}>{para}</p>
               ))

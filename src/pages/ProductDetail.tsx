@@ -17,6 +17,7 @@ import {
 import { fetchProductBySlug, fetchProducts, fetchReviews, createReview } from '../lib/api';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { useSEO } from '../hooks/useSEO';
 import ProductCard from '../components/ProductCard';
 import type { Product, Review } from '../types';
@@ -26,6 +27,7 @@ export default function ProductDetail() {
   const navigate = useNavigate();
   const { addItem } = useCart();
   const { user } = useAuth();
+  const { showToast } = useToast();
   
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
@@ -488,7 +490,7 @@ export default function ProductDetail() {
                   <form
                     onSubmit={async (e) => {
                       e.preventDefault();
-                      if (!newComment.trim()) return alert('Please write a comment');
+                      if (!newComment.trim()) return showToast('Please write a comment', 'error');
                       try {
                         setSubmitLoading(true);
                         await createReview({
@@ -501,9 +503,9 @@ export default function ProductDetail() {
                         setNewComment('');
                         setNewRating(5);
                         loadReviews(product.id);
-                        alert('Review submitted successfully!');
+                        showToast('Review submitted successfully!', 'success');
                       } catch (err: any) {
-                        alert(err.message || 'Failed to submit review');
+                        showToast(err.message || 'Failed to submit review', 'error');
                       } finally {
                         setSubmitLoading(false);
                       }

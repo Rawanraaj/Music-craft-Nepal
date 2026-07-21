@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Package, CheckCircle2, Truck, Percent, Headphones } from 'lucide-react';
 import { createInquiry } from '../lib/api';
+import { useToast } from '../context/ToastContext';
 import { CATEGORIES } from '../types';
 
 const BENEFITS = [
@@ -11,6 +12,7 @@ const BENEFITS = [
 ];
 
 export default function Wholesale() {
+  const { showToast } = useToast();
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -40,9 +42,9 @@ export default function Wholesale() {
       });
       setSubmitted(true);
       window.scrollTo(0, 0);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error submitting inquiry:', err);
-      alert('Error submitting inquiry. Please try again.');
+      showToast(err?.message || 'Error submitting inquiry. Please try again.', 'error');
     } finally {
       setLoading(false);
     }

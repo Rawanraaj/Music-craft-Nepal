@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react';
 import { MapPin, Phone, Mail, Clock, Send, CheckCircle2 } from 'lucide-react';
 import { fetchSiteContent } from '../lib/api';
 
+import { useLanguage } from '../context/LanguageContext';
+
 export default function Contact() {
+  const { t, tCms } = useLanguage();
   const [submitted, setSubmitted] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -12,7 +15,7 @@ export default function Contact() {
     message: '',
   });
 
-  const [contactInfo, setContactInfo] = useState({
+  const [contactInfo, setContactInfo] = useState<any>({
     address: 'Bhotahity, Kathmandu, Nepal',
     phone: '01-4123456',
     email: 'hello@musiccraftnepal.com',
@@ -23,7 +26,7 @@ export default function Contact() {
     fetchSiteContent('contact_content')
       .then((data) => {
         if (data) {
-          setContactInfo((prev) => ({ ...prev, ...data }));
+          setContactInfo((prev: any) => ({ ...prev, ...data }));
         }
       })
       .catch((err) => console.error('Error fetching contact content:', err));
@@ -31,7 +34,7 @@ export default function Contact() {
     fetchSiteContent('contact_details')
       .then((data) => {
         if (data) {
-          setContactInfo((prev) => ({ ...prev, ...data }));
+          setContactInfo((prev: any) => ({ ...prev, ...data }));
         }
       })
       .catch((err) => console.error('Error fetching contact details:', err));
@@ -43,10 +46,10 @@ export default function Contact() {
   };
 
   const infoList = [
-    { icon: MapPin, label: 'Address', value: contactInfo.address },
-    { icon: Phone, label: 'Phone', value: contactInfo.phone },
-    { icon: Mail, label: 'Email', value: contactInfo.email },
-    { icon: Clock, label: 'Hours', value: contactInfo.hours },
+    { icon: MapPin, label: t('address'), value: tCms(contactInfo.address) },
+    { icon: Phone, label: t('phone'), value: tCms(contactInfo.phone) },
+    { icon: Mail, label: t('email'), value: tCms(contactInfo.email) },
+    { icon: Clock, label: 'Hours', value: tCms(contactInfo.hours) },
   ];
 
   return (

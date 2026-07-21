@@ -20,6 +20,8 @@ import {
   ArrowDown,
   Tag,
   Download,
+  FileText,
+  Plus,
 } from 'lucide-react';
 import {
   BarChart,
@@ -33,6 +35,8 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import ConfirmDialog from '../components/ConfirmDialog';
 import {
   fetchProducts,
   fetchOrders,
@@ -49,12 +53,16 @@ import {
   deleteCoupon,
   fetchSiteContent,
   updateSiteContent,
+  fetchArticles,
+  createArticle,
+  updateArticle,
+  deleteArticle,
 } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { CATEGORIES } from '../types';
-import type { Product, Order, WholesaleInquiry } from '../types';
+import type { Product, Order, WholesaleInquiry, Article } from '../types';
 
-type AdminTab = 'overview' | 'products' | 'orders' | 'inquiries' | 'coupons' | 'settings';
+type AdminTab = 'overview' | 'products' | 'orders' | 'inquiries' | 'coupons' | 'articles' | 'settings';
 
 const STATUS_COLORS: Record<string, string> = {
   // Orders
@@ -72,18 +80,28 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function Admin() {
   const { user, logout, loading: authLoading } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Confirm Dialog Modal State
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Live Data States
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [inquiries, setInquiries] = useState<WholesaleInquiry[]>([]);
   const [coupons, setCoupons] = useState<any[]>([]);
+  const [articles, setArticles] = useState<Article[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
-  // Form & CRUD States
+  // Product CRUD States
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
@@ -118,30 +136,56 @@ export default function Admin() {
     usage_limit: 0,
   });
 
+  // Articles CRUD States
+  const [isArticleFormOpen, setIsArticleFormOpen] = useState(false);
+  const [editingArticle, setEditingArticle] = useState<Article | null>(null);
+  const [articleFields, setArticleFields] = useState({
+    title: '',
+    slug: '',
+    excerpt: '',
+    content: '',
+    image: '',
+    author: '',
+    date: new Date().toISOString().split('T')[0],
+    readTime: '5 min',
+    category: 'Buying Guides',
+  });
+
   // CMS Settings States
   const [cmsHeroSlides, setCmsHeroSlides] = useState<any[]>([]);
-  const [cmsAboutCopy, setCmsAboutCopy] = useState('');
+  const [cmsAboutCopy, setCmsAboutCopy] = useState<{ en: string; ne: string }>({ en: '', ne: '' });
   const [cmsAboutImage, setCmsAboutImage] = useState('');
   const [cmsContactDetails, setCmsContactDetails] = useState({
-    phone: '',
-    email: '',
-    hours: '',
+    phone: { en: '', ne: '' },
+    email: { en: '', ne: '' },
+    hours: { en: '', ne: '' },
+  });
+  const [cmsPromoBanner, setCmsPromoBanner] = useState({
+    enabled: true,
+    badge: { en: 'LIMITED TIME', ne: 'सीमित समय' },
+    headline: { en: 'Monsoon Sale — Up to 30% Off', ne: 'मनसुन अफर — ३०% सम्म छुट' },
+    subcopy: { en: 'Save on select traditional instruments. Handcrafted quality, unbeatable prices.', ne: 'नेपाली मौलिक बाजाहरूमा विशेष छुट।' },
+    discountPercent: 30,
+    buttonText: { en: 'Shop Deals', ne: 'अफर हेर्नुहोस्' },
+    buttonLink: '/shop?deals=true',
   });
   const [settingsLoading, setSettingsLoading] = useState(false);
 
   const loadAllData = async () => {
     setLoadingData(true);
     try {
-      const [prodData, ordData, inqData, coupData] = await Promise.all([
+      const [prodData, ordData, inqData, coupData, artData] = await Promise.all([
         fetchProducts(),
         fetchOrders(),
         fetchInquiries(),
         fetchCoupons(),
+        fetchArticles(),
       ]);
       setProducts(prodData);
       setOrders(ordData);
       setInquiries(inqData);
       setCoupons(coupData);
+      setArticles(artData);
     } catch (err) {
       console.error('Error fetching admin dashboard data:', err);
     } finally {
@@ -151,16 +195,49 @@ export default function Admin() {
 
   const loadCmsData = async () => {
     try {
-      const [slides, aboutCopy, aboutImg, contact] = await Promise.all([
+      const [slides, aboutCopy, aboutImg, contact, promo] = await Promise.all([
         fetchSiteContent('hero_slides'),
         fetchSiteContent('about_us_copy'),
         fetchSiteContent('about_story_image'),
         fetchSiteContent('contact_details'),
+        fetchSiteContent('promo_banner'),
       ]);
-      if (slides) setCmsHeroSlides(slides);
-      if (aboutCopy) setCmsAboutCopy(aboutCopy);
+      if (slides && Array.isArray(slides)) {
+        const formatted = slides.map((s: any) => ({
+          image: s.image || '',
+          title: typeof s.title === 'object' ? s.title : { en: s.title || '', ne: '' },
+          subtitle: typeof s.subtitle === 'object' ? s.subtitle : { en: s.subtitle || '', ne: '' },
+          cta: typeof s.cta === 'object' ? s.cta : { en: s.cta || '', ne: '' },
+          link: s.link || '',
+        }));
+        setCmsHeroSlides(formatted);
+      }
+      if (aboutCopy) {
+        if (typeof aboutCopy === 'object' && !Array.isArray(aboutCopy)) {
+          setCmsAboutCopy(aboutCopy);
+        } else {
+          setCmsAboutCopy({ en: typeof aboutCopy === 'string' ? aboutCopy : '', ne: '' });
+        }
+      }
       if (aboutImg) setCmsAboutImage(aboutImg);
-      if (contact) setCmsContactDetails(contact);
+      if (contact) {
+        setCmsContactDetails({
+          phone: typeof contact.phone === 'object' ? contact.phone : { en: contact.phone || '', ne: '' },
+          email: typeof contact.email === 'object' ? contact.email : { en: contact.email || '', ne: '' },
+          hours: typeof contact.hours === 'object' ? contact.hours : { en: contact.hours || '', ne: '' },
+        });
+      }
+      if (promo) {
+        setCmsPromoBanner({
+          enabled: promo.enabled !== false,
+          badge: typeof promo.badge === 'object' ? promo.badge : { en: promo.badge || 'LIMITED TIME', ne: '' },
+          headline: typeof promo.headline === 'object' ? promo.headline : { en: promo.headline || '', ne: '' },
+          subcopy: typeof promo.subcopy === 'object' ? promo.subcopy : { en: promo.subcopy || '', ne: '' },
+          discountPercent: promo.discountPercent || 30,
+          buttonText: typeof promo.buttonText === 'object' ? promo.buttonText : { en: promo.buttonText || '', ne: '' },
+          buttonLink: promo.buttonLink || '/shop?deals=true',
+        });
+      }
     } catch (err) {
       console.error('Error loading CMS data:', err);
     }
@@ -258,6 +335,32 @@ export default function Admin() {
   }, [orders]);
 
   // CSV Exports
+  const exportProductsCSV = () => {
+    const headers = ['Product ID', 'Name', 'Slug', 'Category', 'Price', 'Original Price', 'Stock', 'In Stock', 'Badge', 'Artisan', 'Region'];
+    const rows = products.map((p) => [
+      p.id,
+      p.name,
+      p.slug,
+      p.category,
+      p.price,
+      p.originalPrice || '',
+      p.stock_quantity,
+      p.inStock ? 'Yes' : 'No',
+      p.badge || '',
+      p.artisan || '',
+      p.region || '',
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' 
+      + [headers.join(','), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `products_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const exportOrdersCSV = () => {
     const headers = ['Order ID', 'Customer Name', 'Email', 'Phone', 'Address', 'Total', 'Payment Method', 'Coupon Code', 'Status', 'Date'];
     const rows = orders.map((o) => [
@@ -337,21 +440,29 @@ export default function Admin() {
   };
 
   const handleDeleteCouponItem = async (code: string) => {
-    if (window.confirm(`Are you sure you want to delete coupon ${code}?`)) {
-      try {
-        await deleteCoupon(code);
-        setCoupons((prev) => prev.filter((c) => c.code !== code));
-      } catch (err) {
-        console.error('Failed to delete coupon:', err);
-        alert('Failed to delete coupon.');
-      }
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Coupon',
+      message: `Are you sure you want to delete coupon ${code}?`,
+      onConfirm: async () => {
+        try {
+          await deleteCoupon(code);
+          setCoupons((prev) => prev.filter((c) => c.code !== code));
+          showToast('Coupon deleted successfully.', 'success');
+        } catch (err) {
+          console.error('Failed to delete coupon:', err);
+          showToast('Failed to delete coupon.', 'error');
+        } finally {
+          setConfirmModal(null);
+        }
+      },
+    });
   };
 
   const handleSaveCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!couponFields.code) {
-      alert('Coupon code is required.');
+      showToast('Coupon code is required.', 'error');
       return;
     }
     const cleanFields = {
@@ -367,14 +478,92 @@ export default function Admin() {
       if (editingCoupon) {
         const updated = await updateCoupon(editingCoupon.code, cleanFields);
         setCoupons((prev) => prev.map((c) => (c.code === editingCoupon.code ? updated : c)));
+        showToast('Coupon updated successfully.', 'success');
       } else {
         const created = await createCoupon(cleanFields);
         setCoupons((prev) => [created, ...prev]);
+        showToast('Coupon created successfully.', 'success');
       }
       setIsCouponFormOpen(false);
     } catch (err: any) {
       console.error('Error saving coupon:', err);
-      alert(`Error saving coupon: ${err.message || 'Unknown error'}`);
+      showToast(`Error saving coupon: ${err.message || 'Unknown error'}`, 'error');
+    }
+  };
+
+  // Articles CRUD Operations
+  const handleOpenAddArticleForm = () => {
+    setEditingArticle(null);
+    setArticleFields({
+      title: '',
+      slug: '',
+      excerpt: '',
+      content: '',
+      image: '',
+      author: '',
+      date: new Date().toISOString().split('T')[0],
+      readTime: '5 min',
+      category: 'Buying Guides',
+    });
+    setIsArticleFormOpen(true);
+  };
+
+  const handleOpenEditArticleForm = (art: Article) => {
+    setEditingArticle(art);
+    setArticleFields({
+      title: art.title,
+      slug: art.slug,
+      excerpt: art.excerpt,
+      content: art.content,
+      image: art.image,
+      author: art.author,
+      date: art.date,
+      readTime: art.readTime,
+      category: art.category,
+    });
+    setIsArticleFormOpen(true);
+  };
+
+  const handleDeleteArticleItem = async (id: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Article',
+      message: 'Are you sure you want to delete this article?',
+      onConfirm: async () => {
+        try {
+          await deleteArticle(id);
+          setArticles((prev) => prev.filter((a) => a.id !== id));
+          showToast('Article deleted successfully.', 'success');
+        } catch (err) {
+          console.error('Failed to delete article:', err);
+          showToast('Failed to delete article.', 'error');
+        } finally {
+          setConfirmModal(null);
+        }
+      },
+    });
+  };
+
+  const handleSaveArticle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!articleFields.title || !articleFields.slug) {
+      showToast('Article title and slug are required.', 'error');
+      return;
+    }
+    try {
+      if (editingArticle) {
+        const updated = await updateArticle(editingArticle.id, articleFields);
+        setArticles((prev) => prev.map((a) => (a.id === editingArticle.id ? updated : a)));
+        showToast('Article updated successfully.', 'success');
+      } else {
+        const created = await createArticle(articleFields);
+        setArticles((prev) => [created, ...prev]);
+        showToast('Article created successfully.', 'success');
+      }
+      setIsArticleFormOpen(false);
+    } catch (err: any) {
+      console.error('Error saving article:', err);
+      showToast(`Error saving article: ${err.message || 'Unknown error'}`, 'error');
     }
   };
 
@@ -388,11 +577,12 @@ export default function Admin() {
         updateSiteContent('about_us_copy', cmsAboutCopy),
         updateSiteContent('about_story_image', cmsAboutImage),
         updateSiteContent('contact_details', cmsContactDetails),
+        updateSiteContent('promo_banner', cmsPromoBanner),
       ]);
-      alert('CMS settings saved successfully!');
+      showToast('CMS settings saved successfully!', 'success');
     } catch (err) {
       console.error('Failed to save settings:', err);
-      alert('Failed to save settings.');
+      showToast('Failed to save settings.', 'error');
     } finally {
       setSettingsLoading(false);
     }
@@ -446,15 +636,23 @@ export default function Admin() {
   };
 
   const handleDeleteProduct = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
-      try {
-        await deleteProduct(id);
-        setProducts((prev) => prev.filter((p) => p.id !== id));
-      } catch (err) {
-        console.error('Failed to delete product:', err);
-        alert('Failed to delete product.');
-      }
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Product',
+      message: 'Are you sure you want to delete this product? This action cannot be undone.',
+      onConfirm: async () => {
+        try {
+          await deleteProduct(id);
+          setProducts((prev) => prev.filter((p) => p.id !== id));
+          showToast('Product deleted successfully.', 'success');
+        } catch (err) {
+          console.error('Failed to delete product:', err);
+          showToast('Failed to delete product.', 'error');
+        } finally {
+          setConfirmModal(null);
+        }
+      },
+    });
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -472,7 +670,7 @@ export default function Admin() {
       }));
     } catch (err) {
       console.error('Failed to upload images:', err);
-      alert('Failed to upload image(s). Make sure you have created the "product-images" bucket in your storage dashboard.');
+      showToast('Failed to upload image(s). Make sure you have created the "product-images" bucket in storage dashboard.', 'error');
     } finally {
       setImageUploading(false);
     }
@@ -502,11 +700,11 @@ export default function Admin() {
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formFields.name || !formFields.slug) {
-      alert('Product name and slug are required.');
+      showToast('Product name and slug are required.', 'error');
       return;
     }
     if (formFields.images.length === 0) {
-      alert('Please upload at least one image.');
+      showToast('Please upload at least one image.', 'error');
       return;
     }
 
@@ -523,14 +721,16 @@ export default function Admin() {
     try {
       if (editingProduct) {
         await updateProduct(editingProduct.id, cleanedFields);
+        showToast('Product updated successfully.', 'success');
       } else {
         await createProduct(cleanedFields);
+        showToast('Product created successfully.', 'success');
       }
       setIsFormOpen(false);
       loadAllData();
     } catch (err: any) {
       console.error('Error saving product:', err);
-      alert(`Error saving product: ${err.message || 'Unknown error'}`);
+      showToast(`Error saving product: ${err.message || 'Unknown error'}`, 'error');
     }
   };
 
@@ -540,9 +740,10 @@ export default function Admin() {
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? { ...o, status } : o))
       );
+      showToast('Order status updated.', 'success');
     } catch (err) {
       console.error('Failed to update order status:', err);
-      alert('Failed to update order status.');
+      showToast('Failed to update order status.', 'error');
     }
   };
 
@@ -552,9 +753,10 @@ export default function Admin() {
       setInquiries((prev) =>
         prev.map((i) => (i.id === inquiryId ? { ...i, status } : i))
       );
+      showToast('Inquiry status updated.', 'success');
     } catch (err) {
       console.error('Failed to update inquiry status:', err);
-      alert('Failed to update inquiry status.');
+      showToast('Failed to update inquiry status.', 'error');
     }
   };
 
@@ -564,6 +766,7 @@ export default function Admin() {
     { id: 'orders' as AdminTab, label: 'Orders', icon: ShoppingCart },
     { id: 'inquiries' as AdminTab, label: 'Wholesale Inquiries', icon: Mail },
     { id: 'coupons' as AdminTab, label: 'Coupons', icon: Tag },
+    { id: 'articles' as AdminTab, label: 'Articles', icon: FileText },
     { id: 'settings' as AdminTab, label: 'Settings', icon: Settings },
   ];
 
@@ -827,12 +1030,21 @@ export default function Admin() {
               <div className="bg-white rounded-xl border border-mcn-gray-200 overflow-hidden">
                 <div className="flex items-center justify-between p-5 border-b border-mcn-gray-200">
                   <h2 className="text-base font-extrabold text-mcn-charcoal">All Products ({products.length})</h2>
-                  <button
-                    onClick={handleOpenAddForm}
-                    className="px-4 py-2 bg-mcn-blue text-white text-sm font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors"
-                  >
-                    + Add Product
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={exportProductsCSV}
+                      className="inline-flex items-center gap-2 px-4 py-2 border border-mcn-gray-300 text-mcn-charcoal hover:bg-mcn-gray-50 text-sm font-bold rounded-lg transition-colors"
+                    >
+                      <Download className="w-4 h-4 text-mcn-gray-600" />
+                      Export CSV
+                    </button>
+                    <button
+                      onClick={handleOpenAddForm}
+                      className="px-4 py-2 bg-mcn-blue text-white text-sm font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors"
+                    >
+                      + Add Product
+                    </button>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
@@ -1112,44 +1324,294 @@ export default function Admin() {
               </div>
             )}
 
+            {/* Articles Tab */}
+            {activeTab === 'articles' && (
+              <div className="bg-white rounded-xl border border-mcn-gray-200 overflow-hidden">
+                <div className="flex items-center justify-between p-5 border-b border-mcn-gray-200">
+                  <h2 className="text-base font-extrabold text-mcn-charcoal">All Articles ({articles.length})</h2>
+                  <button
+                    onClick={handleOpenAddArticleForm}
+                    className="px-4 py-2 bg-mcn-blue text-white text-sm font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors"
+                  >
+                    + Add Article
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-mcn-gray-50 text-xs font-bold text-mcn-gray-500 uppercase tracking-wide">
+                        <th className="text-left px-5 py-3">Article</th>
+                        <th className="text-left px-5 py-3 hidden md:table-cell">Category</th>
+                        <th className="text-left px-5 py-3 hidden lg:table-cell">Author</th>
+                        <th className="text-left px-5 py-3 hidden md:table-cell">Date</th>
+                        <th className="text-left px-5 py-3">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-mcn-gray-100">
+                      {articles.map((art) => (
+                        <tr key={art.id} className="hover:bg-mcn-gray-50 transition-colors">
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={art.image}
+                                alt={art.title}
+                                className="w-12 h-10 rounded-lg object-cover bg-mcn-gray-100 shrink-0"
+                              />
+                              <div>
+                                <p className="text-sm font-bold text-mcn-charcoal line-clamp-1">{art.title}</p>
+                                <p className="text-xs text-mcn-gray-400 font-mono">/{art.slug}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 hidden md:table-cell">
+                            <span className="inline-block px-2.5 py-0.5 text-xs font-bold bg-mcn-blue/10 text-mcn-blue rounded-full">
+                              {art.category}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-xs font-semibold text-mcn-gray-600 hidden lg:table-cell">
+                            {art.author}
+                          </td>
+                          <td className="px-5 py-4 text-xs text-mcn-gray-500 hidden md:table-cell">
+                            {art.date}
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleOpenEditArticleForm(art)}
+                                className="text-mcn-gray-500 hover:text-mcn-blue transition-colors"
+                                aria-label="Edit article"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteArticleItem(art.id)}
+                                className="text-mcn-red hover:text-red-700 transition-colors"
+                                aria-label="Delete article"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {articles.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="text-center py-8 text-sm text-mcn-gray-400">
+                            No articles found. Click "+ Add Article" to write one.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* Settings Tab */}
             {activeTab === 'settings' && (
               <div className="max-w-4xl space-y-6">
-                {/* Store & Contact Information */}
                 <form onSubmit={handleSaveSettings} className="space-y-6">
+                  {/* Promo Banner Settings */}
+                  <div className="bg-white rounded-xl border border-mcn-gray-200 p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h2 className="text-lg font-extrabold text-mcn-charcoal">Promo Banner (Monsoon Sale)</h2>
+                        <p className="text-xs text-mcn-gray-500">Control the home page promotional callout banner.</p>
+                      </div>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={cmsPromoBanner.enabled !== false}
+                          onChange={(e) => setCmsPromoBanner((prev) => ({ ...prev, enabled: e.target.checked }))}
+                          className="w-4 h-4 text-mcn-blue rounded focus:ring-mcn-blue"
+                        />
+                        <span className="text-sm font-bold text-mcn-charcoal">Show Banner</span>
+                      </label>
+                    </div>
+
+                    <div className="space-y-4 pt-2 border-t border-mcn-gray-100">
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Badge (EN)</label>
+                          <input
+                            type="text"
+                            value={typeof cmsPromoBanner.badge === 'object' ? cmsPromoBanner.badge.en || '' : cmsPromoBanner.badge || ''}
+                            onChange={(e) =>
+                              setCmsPromoBanner((prev: any) => ({
+                                ...prev,
+                                badge: { ...prev.badge, en: e.target.value },
+                              }))
+                            }
+                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Badge (Nepali / नेपाली)</label>
+                          <input
+                            type="text"
+                            value={typeof cmsPromoBanner.badge === 'object' ? cmsPromoBanner.badge.ne || '' : ''}
+                            onChange={(e) =>
+                              setCmsPromoBanner((prev: any) => ({
+                                ...prev,
+                                badge: { ...prev.badge, ne: e.target.value },
+                              }))
+                            }
+                            placeholder="e.g. सीमित समय"
+                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Headline (EN)</label>
+                          <input
+                            type="text"
+                            value={typeof cmsPromoBanner.headline === 'object' ? cmsPromoBanner.headline.en || '' : cmsPromoBanner.headline || ''}
+                            onChange={(e) =>
+                              setCmsPromoBanner((prev: any) => ({
+                                ...prev,
+                                headline: { ...prev.headline, en: e.target.value },
+                              }))
+                            }
+                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Headline (Nepali / नेपाली)</label>
+                          <input
+                            type="text"
+                            value={typeof cmsPromoBanner.headline === 'object' ? cmsPromoBanner.headline.ne || '' : ''}
+                            onChange={(e) =>
+                              setCmsPromoBanner((prev: any) => ({
+                                ...prev,
+                                headline: { ...prev.headline, ne: e.target.value },
+                              }))
+                            }
+                            placeholder="e.g. मनसुन अफर — ३०% सम्म छुट"
+                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Subcopy (EN)</label>
+                          <textarea
+                            rows={2}
+                            value={typeof cmsPromoBanner.subcopy === 'object' ? cmsPromoBanner.subcopy.en || '' : cmsPromoBanner.subcopy || ''}
+                            onChange={(e) =>
+                              setCmsPromoBanner((prev: any) => ({
+                                ...prev,
+                                subcopy: { ...prev.subcopy, en: e.target.value },
+                              }))
+                            }
+                            className="w-full p-2.5 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Subcopy (Nepali / नेपाली)</label>
+                          <textarea
+                            rows={2}
+                            value={typeof cmsPromoBanner.subcopy === 'object' ? cmsPromoBanner.subcopy.ne || '' : ''}
+                            onChange={(e) =>
+                              setCmsPromoBanner((prev: any) => ({
+                                ...prev,
+                                subcopy: { ...prev.subcopy, ne: e.target.value },
+                              }))
+                            }
+                            placeholder="नेपाली विवरण"
+                            className="w-full p-2.5 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid sm:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Discount %</label>
+                          <input
+                            type="number"
+                            value={cmsPromoBanner.discountPercent || 30}
+                            onChange={(e) => setCmsPromoBanner((prev) => ({ ...prev, discountPercent: Number(e.target.value) }))}
+                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Button Text (EN)</label>
+                          <input
+                            type="text"
+                            value={typeof cmsPromoBanner.buttonText === 'object' ? cmsPromoBanner.buttonText.en || '' : cmsPromoBanner.buttonText || ''}
+                            onChange={(e) =>
+                              setCmsPromoBanner((prev: any) => ({
+                                ...prev,
+                                buttonText: { ...prev.buttonText, en: e.target.value },
+                              }))
+                            }
+                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Button Text (NE)</label>
+                          <input
+                            type="text"
+                            value={typeof cmsPromoBanner.buttonText === 'object' ? cmsPromoBanner.buttonText.ne || '' : ''}
+                            onChange={(e) =>
+                              setCmsPromoBanner((prev: any) => ({
+                                ...prev,
+                                buttonText: { ...prev.buttonText, ne: e.target.value },
+                              }))
+                            }
+                            placeholder="अफर हेर्नुहोस्"
+                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Store & Contact Information */}
                   <div className="bg-white rounded-xl border border-mcn-gray-200 p-6">
                     <h2 className="text-lg font-extrabold text-mcn-charcoal mb-4">Contact & Hours Settings</h2>
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-bold text-mcn-charcoal mb-1">Contact Email</label>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Email (EN)</label>
                         <input
                           type="email"
-                          required
-                          value={cmsContactDetails.email || ''}
-                          onChange={(e) => setCmsContactDetails(prev => ({ ...prev, email: e.target.value }))}
-                          className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                          value={typeof cmsContactDetails.email === 'object' ? cmsContactDetails.email.en || '' : cmsContactDetails.email || ''}
+                          onChange={(e) => setCmsContactDetails((prev: any) => ({ ...prev, email: { ...prev.email, en: e.target.value } }))}
+                          className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-bold text-mcn-charcoal mb-1">Phone Number</label>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Phone (EN)</label>
                         <input
                           type="text"
-                          required
-                          value={cmsContactDetails.phone || ''}
-                          onChange={(e) => setCmsContactDetails(prev => ({ ...prev, phone: e.target.value }))}
-                          className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                          value={typeof cmsContactDetails.phone === 'object' ? cmsContactDetails.phone.en || '' : cmsContactDetails.phone || ''}
+                          onChange={(e) => setCmsContactDetails((prev: any) => ({ ...prev, phone: { ...prev.phone, en: e.target.value } }))}
+                          className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
                         />
                       </div>
-                      <div className="sm:col-span-2">
-                        <label className="block text-sm font-bold text-mcn-charcoal mb-1">Working Hours</label>
-                        <input
-                          type="text"
-                          required
-                          value={cmsContactDetails.hours || ''}
-                          onChange={(e) => setCmsContactDetails(prev => ({ ...prev, hours: e.target.value }))}
-                          placeholder="e.g. Sunday - Friday, 9:00 AM - 6:00 PM"
-                          className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
-                        />
+                      <div className="sm:col-span-2 grid sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Working Hours (EN)</label>
+                          <input
+                            type="text"
+                            value={typeof cmsContactDetails.hours === 'object' ? cmsContactDetails.hours.en || '' : cmsContactDetails.hours || ''}
+                            onChange={(e) => setCmsContactDetails((prev: any) => ({ ...prev, hours: { ...prev.hours, en: e.target.value } }))}
+                            placeholder="Sun-Fri: 10AM - 6PM"
+                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Working Hours (Nepali / नेपाली)</label>
+                          <input
+                            type="text"
+                            value={typeof cmsContactDetails.hours === 'object' ? cmsContactDetails.hours.ne || '' : ''}
+                            onChange={(e) => setCmsContactDetails((prev: any) => ({ ...prev, hours: { ...prev.hours, ne: e.target.value } }))}
+                            placeholder="आइत-शुक्र: बिहान १० देखि साँझ ६ बजेसम्म"
+                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1158,24 +1620,34 @@ export default function Admin() {
                   <div className="bg-white rounded-xl border border-mcn-gray-200 p-6">
                     <h2 className="text-lg font-extrabold text-mcn-charcoal mb-4">About Us Copy</h2>
                     <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-bold text-mcn-charcoal mb-1">Story / Content Text</label>
-                        <textarea
-                          rows={6}
-                          required
-                          value={cmsAboutCopy || ''}
-                          onChange={(e) => setCmsAboutCopy(e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
-                        />
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Story Content (EN)</label>
+                          <textarea
+                            rows={6}
+                            value={cmsAboutCopy.en || (typeof cmsAboutCopy === 'string' ? cmsAboutCopy : '')}
+                            onChange={(e) => setCmsAboutCopy((prev) => ({ ...prev, en: e.target.value }))}
+                            className="w-full p-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Story Content (Nepali / नेपाली)</label>
+                          <textarea
+                            rows={6}
+                            value={cmsAboutCopy.ne || ''}
+                            onChange={(e) => setCmsAboutCopy((prev) => ({ ...prev, ne: e.target.value }))}
+                            placeholder="नेपालीमा कथा विवरण..."
+                            className="w-full p-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                          />
+                        </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-bold text-mcn-charcoal mb-1">Story Image URL</label>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Story Image URL</label>
                         <input
                           type="text"
-                          required
                           value={cmsAboutImage || ''}
                           onChange={(e) => setCmsAboutImage(e.target.value)}
-                          className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                          className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
                         />
                       </div>
                     </div>
@@ -1187,13 +1659,24 @@ export default function Admin() {
                       <h2 className="text-lg font-extrabold text-mcn-charcoal">Hero Slides Carousel</h2>
                       <button
                         type="button"
-                        onClick={() => setCmsHeroSlides(prev => [...prev, { image: '', title: '', subtitle: '', buttonText: 'Shop Now', buttonLink: '/shop' }])}
-                        className="text-sm text-mcn-blue font-bold hover:underline"
+                        onClick={() =>
+                          setCmsHeroSlides((prev) => [
+                            ...prev,
+                            {
+                              image: '',
+                              title: { en: '', ne: '' },
+                              subtitle: { en: '', ne: '' },
+                              cta: { en: 'Shop Now', ne: 'अहिले किन्नुहोस्' },
+                              link: '/shop',
+                            },
+                          ])
+                        }
+                        className="text-xs text-mcn-blue font-bold hover:underline"
                       >
                         + Add Slide
                       </button>
                     </div>
-                    
+
                     <div className="space-y-6">
                       {cmsHeroSlides.map((slide, idx) => (
                         <div key={idx} className="border border-mcn-gray-200 rounded-xl p-4 relative space-y-4">
@@ -1201,96 +1684,102 @@ export default function Admin() {
                             <button
                               type="button"
                               onClick={() => {
-                                const newSlides = cmsHeroSlides.filter((_, i) => i !== idx);
-                                setCmsHeroSlides(newSlides);
+                                setCmsHeroSlides(cmsHeroSlides.filter((_, i) => i !== idx));
                               }}
                               className="text-xs text-mcn-red font-bold hover:underline"
                             >
                               Remove
                             </button>
                           </div>
-                          
-                          <h3 className="text-sm font-bold text-mcn-charcoal">Slide #{idx + 1}</h3>
-                          
+
+                          <h3 className="text-xs font-bold text-mcn-charcoal">Slide #{idx + 1}</h3>
+
                           <div className="grid sm:grid-cols-2 gap-4">
                             <div>
-                              <label className="block text-xs font-bold text-mcn-gray-500 mb-1">Title</label>
+                              <label className="block text-xs font-bold text-mcn-gray-500 mb-1">Title (EN)</label>
                               <input
                                 type="text"
-                                required
-                                value={slide.title || ''}
+                                value={typeof slide.title === 'object' ? slide.title.en || '' : slide.title || ''}
                                 onChange={(e) => {
-                                  const newSlides = [...cmsHeroSlides];
-                                  newSlides[idx].title = e.target.value;
-                                  setCmsHeroSlides(newSlides);
+                                  const updated = [...cmsHeroSlides];
+                                  const current = typeof updated[idx].title === 'object' ? updated[idx].title : { en: updated[idx].title || '', ne: '' };
+                                  updated[idx].title = { ...current, en: e.target.value };
+                                  setCmsHeroSlides(updated);
                                 }}
-                                className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-xs"
+                                className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
                               />
                             </div>
                             <div>
-                              <label className="block text-xs font-bold text-mcn-gray-500 mb-1">Subtitle</label>
+                              <label className="block text-xs font-bold text-mcn-gray-500 mb-1">Title (NE)</label>
                               <input
                                 type="text"
-                                required
-                                value={slide.subtitle || ''}
+                                value={typeof slide.title === 'object' ? slide.title.ne || '' : ''}
                                 onChange={(e) => {
-                                  const newSlides = [...cmsHeroSlides];
-                                  newSlides[idx].subtitle = e.target.value;
-                                  setCmsHeroSlides(newSlides);
+                                  const updated = [...cmsHeroSlides];
+                                  const current = typeof updated[idx].title === 'object' ? updated[idx].title : { en: updated[idx].title || '', ne: '' };
+                                  updated[idx].title = { ...current, ne: e.target.value };
+                                  setCmsHeroSlides(updated);
                                 }}
-                                className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-xs"
+                                className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-mcn-gray-500 mb-1">Subtitle (EN)</label>
+                              <input
+                                type="text"
+                                value={typeof slide.subtitle === 'object' ? slide.subtitle.en || '' : slide.subtitle || ''}
+                                onChange={(e) => {
+                                  const updated = [...cmsHeroSlides];
+                                  const current = typeof updated[idx].subtitle === 'object' ? updated[idx].subtitle : { en: updated[idx].subtitle || '', ne: '' };
+                                  updated[idx].subtitle = { ...current, en: e.target.value };
+                                  setCmsHeroSlides(updated);
+                                }}
+                                className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-mcn-gray-500 mb-1">Subtitle (NE)</label>
+                              <input
+                                type="text"
+                                value={typeof slide.subtitle === 'object' ? slide.subtitle.ne || '' : ''}
+                                onChange={(e) => {
+                                  const updated = [...cmsHeroSlides];
+                                  const current = typeof updated[idx].subtitle === 'object' ? updated[idx].subtitle : { en: updated[idx].subtitle || '', ne: '' };
+                                  updated[idx].subtitle = { ...current, ne: e.target.value };
+                                  setCmsHeroSlides(updated);
+                                }}
+                                className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
                               />
                             </div>
                             <div>
                               <label className="block text-xs font-bold text-mcn-gray-500 mb-1">Image URL</label>
                               <input
                                 type="text"
-                                required
                                 value={slide.image || ''}
                                 onChange={(e) => {
-                                  const newSlides = [...cmsHeroSlides];
-                                  newSlides[idx].image = e.target.value;
-                                  setCmsHeroSlides(newSlides);
+                                  const updated = [...cmsHeroSlides];
+                                  updated[idx].image = e.target.value;
+                                  setCmsHeroSlides(updated);
                                 }}
-                                className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-xs"
+                                className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
                               />
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <label className="block text-xs font-bold text-mcn-gray-500 mb-1">Button Text</label>
-                                <input
-                                  type="text"
-                                  required
-                                  value={slide.buttonText || ''}
-                                  onChange={(e) => {
-                                    const newSlides = [...cmsHeroSlides];
-                                    newSlides[idx].buttonText = e.target.value;
-                                    setCmsHeroSlides(newSlides);
-                                  }}
-                                  className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-xs"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs font-bold text-mcn-gray-500 mb-1">Button Link</label>
-                                <input
-                                  type="text"
-                                  required
-                                  value={slide.buttonLink || ''}
-                                  onChange={(e) => {
-                                    const newSlides = [...cmsHeroSlides];
-                                    newSlides[idx].buttonLink = e.target.value;
-                                    setCmsHeroSlides(newSlides);
-                                  }}
-                                  className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-xs"
-                                />
-                              </div>
+                            <div>
+                              <label className="block text-xs font-bold text-mcn-gray-500 mb-1">Link URL</label>
+                              <input
+                                type="text"
+                                value={slide.link || ''}
+                                onChange={(e) => {
+                                  const updated = [...cmsHeroSlides];
+                                  updated[idx].link = e.target.value;
+                                  setCmsHeroSlides(updated);
+                                }}
+                                className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                              />
                             </div>
                           </div>
                         </div>
                       ))}
-                      {cmsHeroSlides.length === 0 && (
-                        <p className="text-center py-4 text-xs text-mcn-gray-400">No slides configured. Default slides will be shown on home page.</p>
-                      )}
                     </div>
                   </div>
 
@@ -1816,6 +2305,154 @@ export default function Admin() {
           </div>
         </div>
       )}
+
+      {/* Slide-over Form for Add / Edit Article */}
+      {isArticleFormOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setIsArticleFormOpen(false)} />
+          <div className="absolute inset-y-0 right-0 max-w-full flex">
+            <div className="w-screen max-w-2xl bg-white shadow-2xl flex flex-col">
+              <header className="px-6 py-5 bg-mcn-dark text-white flex items-center justify-between">
+                <h2 className="text-lg font-extrabold">{editingArticle ? 'Edit Article' : 'Add New Article'}</h2>
+                <button onClick={() => setIsArticleFormOpen(false)} className="text-white hover:text-mcn-red transition-colors">
+                  <X className="w-6 h-6" />
+                </button>
+              </header>
+
+              <form onSubmit={handleSaveArticle} className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-mcn-charcoal mb-1">Title *</label>
+                    <input
+                      required
+                      type="text"
+                      value={articleFields.title}
+                      onChange={(e) => {
+                        const title = e.target.value;
+                        const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                        setArticleFields((prev) => ({ ...prev, title, slug }));
+                      }}
+                      className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                    />
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-mcn-charcoal mb-1">Slug *</label>
+                      <input
+                        required
+                        type="text"
+                        value={articleFields.slug}
+                        onChange={(e) => setArticleFields((prev) => ({ ...prev, slug: e.target.value }))}
+                        className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-mcn-charcoal mb-1">Category</label>
+                      <select
+                        value={articleFields.category}
+                        onChange={(e) => setArticleFields((prev) => ({ ...prev, category: e.target.value }))}
+                        className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                      >
+                        {['Buying Guides', 'Maintenance', 'Culture', 'Tutorials', 'Accessories'].map((cat) => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-mcn-charcoal mb-1">Author</label>
+                      <input
+                        type="text"
+                        required
+                        value={articleFields.author}
+                        onChange={(e) => setArticleFields((prev) => ({ ...prev, author: e.target.value }))}
+                        className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-mcn-charcoal mb-1">Date</label>
+                      <input
+                        type="date"
+                        required
+                        value={articleFields.date}
+                        onChange={(e) => setArticleFields((prev) => ({ ...prev, date: e.target.value }))}
+                        className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-mcn-charcoal mb-1">Read Time</label>
+                      <input
+                        type="text"
+                        required
+                        value={articleFields.readTime}
+                        onChange={(e) => setArticleFields((prev) => ({ ...prev, readTime: e.target.value }))}
+                        className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-mcn-charcoal mb-1">Image URL</label>
+                    <input
+                      type="text"
+                      required
+                      value={articleFields.image}
+                      onChange={(e) => setArticleFields((prev) => ({ ...prev, image: e.target.value }))}
+                      className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-mcn-charcoal mb-1">Excerpt (Summary)</label>
+                    <textarea
+                      rows={3}
+                      required
+                      value={articleFields.excerpt}
+                      onChange={(e) => setArticleFields((prev) => ({ ...prev, excerpt: e.target.value }))}
+                      className="w-full p-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-mcn-charcoal mb-1">Full Content (Markdown)</label>
+                    <textarea
+                      rows={10}
+                      required
+                      value={articleFields.content}
+                      onChange={(e) => setArticleFields((prev) => ({ ...prev, content: e.target.value }))}
+                      className="w-full p-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm font-mono"
+                    />
+                  </div>
+                </div>
+              </form>
+
+              <footer className="px-6 py-4 bg-mcn-gray-50 border-t border-mcn-gray-200 flex gap-3 justify-end shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsArticleFormOpen(false)}
+                  className="px-5 py-2.5 border border-mcn-gray-300 text-mcn-charcoal text-sm font-bold rounded-lg hover:bg-mcn-gray-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveArticle}
+                  className="px-5 py-2.5 bg-mcn-blue text-white text-sm font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors"
+                >
+                  {editingArticle ? 'Save Changes' : 'Create Article'}
+                </button>
+              </footer>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Confirm Dialog for Admin */}
+      <ConfirmDialog
+        isOpen={confirmModal !== null && confirmModal.isOpen}
+        title={confirmModal?.title || 'Confirm Action'}
+        message={confirmModal?.message || 'Are you sure?'}
+        onConfirm={() => confirmModal?.onConfirm()}
+        onCancel={() => setConfirmModal(null)}
+      />
     </div>
   );
 }

@@ -3,11 +3,13 @@ import { Link } from 'react-router-dom';
 import { CheckCircle2, Lock, Truck, BadgeCheck, CreditCard } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { createOrder, validateCoupon, incrementCouponUsage } from '../lib/api';
 
 export default function Checkout() {
   const { items, totalPrice, clearCart } = useCart();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -93,9 +95,9 @@ export default function Checkout() {
       setOrderPlaced(true);
       clearCart();
       window.scrollTo(0, 0);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error placing order:', err);
-      alert('Error placing order. Please try again.');
+      showToast(err?.message || 'Error placing order. Please try again.', 'error');
     } finally {
       setLoading(false);
     }

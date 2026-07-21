@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
+import ConfirmDialog from '../components/ConfirmDialog';
 import { fetchUserOrders, cancelOrder } from '../lib/api';
 import type { Order } from '../types';
 import { ShoppingBag, ChevronRight, XCircle, Clock, Truck } from 'lucide-react';
@@ -11,9 +13,11 @@ const STATUS_STEPS = ['Placed', 'Confirmed', 'Shipped', 'Out for Delivery', 'Del
 export default function MyOrders() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { showToast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
 
   const loadOrders = async () => {
     if (!user) return;
@@ -34,13 +38,19 @@ export default function MyOrders() {
   }, [user]);
 
   const handleCancelOrder = async (orderId: string) => {
-    if (!window.confirm('Are you sure you want to cancel this order?')) return;
+    setCancelConfirmId(orderId);
+  };
+
+  const confirmCancel = async () => {
+    if (!cancelConfirmId) return;
     try {
-      await cancelOrder(orderId);
-      alert('Order cancelled successfully.');
+      await cancelOrder(cancelConfirmId);
+      showToast('Order cancelled successfully.', 'success');
       loadOrders();
     } catch (err: any) {
-      alert(err.message || 'Failed to cancel order');
+      showToast(err.message || 'Failed to cancel order', 'error');
+    } finally {
+      setCancelConfirmId(null);
     }
   };
 
@@ -240,6 +250,17 @@ export default function MyOrders() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={cancelConfirmId !== null}
+        title="Cancel Order"
+        message="Are you sure you want to cancel this order? This action cannot be undone."
+        confirmText="Yes, Cancel Order"
+        cancelText="No, Keep Order"
+        type="danger"
+        onConfirm={confirmCancel}
+        onCancel={() => setCancelConfirmId(null)}
+      />
     </div>
   );
 }
