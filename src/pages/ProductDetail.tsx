@@ -482,7 +482,7 @@ export default function ProductDetail() {
                       Sign In
                     </Link>
                   </div>
-                ) : reviews.some((r) => r.user_id === user.id) ? (
+                ) : reviews.some((r) => user && r.user_id === user?.id) ? (
                   <p className="text-sm text-mcn-gray-500 italic p-4 bg-mcn-gray-50 rounded-lg border border-mcn-gray-200 text-center">
                     You have already reviewed this product. Thank you for your feedback!
                   </p>
@@ -490,13 +490,14 @@ export default function ProductDetail() {
                   <form
                     onSubmit={async (e) => {
                       e.preventDefault();
+                      if (!user) return showToast('Please sign in to post a review.', 'error');
                       if (!newComment.trim()) return showToast('Please write a comment', 'error');
                       try {
                         setSubmitLoading(true);
                         await createReview({
                           product_id: product.id,
                           user_id: user.id,
-                          user_name: user.email.split('@')[0],
+                          user_name: user?.name || user?.email?.split('@')[0] || 'User',
                           rating: newRating,
                           comment: newComment,
                         });

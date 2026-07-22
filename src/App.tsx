@@ -62,17 +62,17 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <LanguageProvider>
-        <ToastProvider>
-          <CartProvider>
-            <BrowserRouter>
+    <BrowserRouter>
+      <AuthProvider>
+        <LanguageProvider>
+          <ToastProvider>
+            <CartProvider>
               <ScrollToTop />
               <AppRoutes />
-            </BrowserRouter>
-          </CartProvider>
-        </ToastProvider>
-      </LanguageProvider>
-    </AuthProvider>
+            </CartProvider>
+          </ToastProvider>
+        </LanguageProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }

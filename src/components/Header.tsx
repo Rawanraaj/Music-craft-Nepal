@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Home,
   Search,
@@ -48,6 +48,14 @@ export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+
+  // Close menus when user becomes null (e.g. after logout)
+  useEffect(() => {
+    if (!user) {
+      setAccountMenuOpen(false);
+      setMobileMenuOpen(false);
+    }
+  }, [user]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,21 +198,21 @@ export default function Header() {
                       className="flex items-center gap-1.5 text-mcn-charcoal hover:text-mcn-blue transition-colors focus:outline-none"
                     >
                       <div className="w-8 h-8 rounded-full bg-mcn-blue/10 flex items-center justify-center text-mcn-blue font-bold text-sm">
-                        {user.name.charAt(0).toUpperCase()}
+                        {(user?.name || 'User').charAt(0).toUpperCase()}
                       </div>
                       <span className="hidden md:block text-sm font-semibold max-w-[100px] truncate">
-                        {user.name.split(' ')[0]}
+                        {(user?.name || 'User').split(' ')[0]}
                       </span>
                       <ChevronDown className={`w-4 h-4 transition-transform ${accountMenuOpen ? 'rotate-180' : ''}`} />
                     </button>
 
-                    {accountMenuOpen && (
+                    {accountMenuOpen && user && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setAccountMenuOpen(false)} />
                         <div className="absolute right-0 mt-2 w-56 bg-white border border-mcn-gray-200 rounded-xl shadow-xl z-50 py-2 animate-fade-in">
                           <div className="px-4 py-2.5 border-b border-mcn-gray-100">
-                            <p className="text-sm font-bold text-mcn-charcoal truncate">{user.name}</p>
-                            <p className="text-xs text-mcn-gray-500 truncate">{user.email}</p>
+                            <p className="text-sm font-bold text-mcn-charcoal truncate">{user?.name || 'User'}</p>
+                            <p className="text-xs text-mcn-gray-500 truncate">{user?.email || ''}</p>
                           </div>
                           <ul className="py-1">
                             <li>
@@ -233,8 +241,8 @@ export default function Header() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  logout();
                                   setAccountMenuOpen(false);
+                                  logout('/login');
                                 }}
                                 className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-mcn-red hover:bg-red-50 transition-colors"
                               >
@@ -359,7 +367,7 @@ export default function Header() {
               {user?.isAdmin && (
                 <li className="ml-auto">
                   <button
-                    onClick={logout}
+                    onClick={() => logout('/login')}
                     className="px-3 py-2 text-sm font-semibold text-mcn-red hover:bg-red-50 rounded-md transition-colors"
                   >
                     {t('logout')}
@@ -407,8 +415,8 @@ export default function Header() {
                 <li className="border-t border-mcn-gray-200 mt-2 pt-2">
                   <button
                     onClick={() => {
-                      logout();
                       setMobileMenuOpen(false);
+                      logout('/login');
                     }}
                     className="block w-full text-left px-4 py-3 text-sm font-semibold text-mcn-red hover:bg-red-50 transition-colors"
                   >

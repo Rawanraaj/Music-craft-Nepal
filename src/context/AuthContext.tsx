@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import type { User } from '../types';
 
@@ -8,12 +9,13 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; isAdmin: boolean; error?: string }>;
   register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   loginWithGoogle: () => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (redirectTo?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -123,9 +125,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
   };
 
-  const logout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
+  const logout = async (redirectTo: string = '/login') => {
+    try {
+      if (redirectTo) {
+        navigate(redirectTo, { replace: true });
+      }
+      setUser(null);
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error('Error signing out:', err);
+    } finally {
+      setUser(null);
+      if (redirectTo) {
+        navigate(redirectTo, { replace: true });
+      }
+    }
   };
 
   return (

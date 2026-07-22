@@ -271,16 +271,17 @@ export default function Admin() {
         loadAllData();
         loadCmsData();
 
-        // Register Web Push notification subscription
-        import('../lib/pushNotifications')
-          .then(({ registerPushNotifications }) => {
-            registerPushNotifications(user.id).catch((err) => {
-              console.warn('Push registration declined or failed:', err);
+        if (user?.id) {
+          import('../lib/pushNotifications')
+            .then(({ registerPushNotifications }) => {
+              registerPushNotifications(user.id).catch((err) => {
+                console.warn('Push registration declined or failed:', err);
+              });
+            })
+            .catch((err) => {
+              console.error('Error loading push notification module:', err);
             });
-          })
-          .catch((err) => {
-            console.error('Error loading push notification module:', err);
-          });
+        }
       }
     }
   }, [user, authLoading, navigate]);
@@ -813,17 +814,19 @@ export default function Admin() {
         ))}
       </nav>
       <div className="p-4 border-t border-white/10">
-        <div className="flex items-center gap-3 mb-4 px-4">
-          <div className="w-10 h-10 rounded-full bg-mcn-blue flex items-center justify-center text-white font-bold uppercase">
-            {user.name.charAt(0)}
+        {user && (
+          <div className="flex items-center gap-3 mb-4 px-4">
+            <div className="w-10 h-10 rounded-full bg-mcn-blue flex items-center justify-center text-white font-bold uppercase">
+              {(user?.name || 'Admin').charAt(0)}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white truncate">{user?.name || 'Admin'}</p>
+              <p className="text-xs text-mcn-gray-400 truncate">{user?.email || ''}</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-white truncate">{user.name}</p>
-            <p className="text-xs text-mcn-gray-400 truncate">{user.email}</p>
-          </div>
-        </div>
+        )}
         <button
-          onClick={logout}
+          onClick={() => logout('/login')}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-bold text-mcn-gray-400 hover:bg-red-500/10 hover:text-red-400 transition-colors"
         >
           <LogOut className="w-5 h-5" />

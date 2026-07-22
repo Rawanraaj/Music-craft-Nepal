@@ -20,7 +20,10 @@ export default function MyOrders() {
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
 
   const loadOrders = async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const data = await fetchUserOrders(user.id);
@@ -64,10 +67,28 @@ export default function MyOrders() {
     return (now - placedTime) < oneHour;
   };
 
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-mcn-gray-50 flex items-center justify-center pt-24 pb-16 px-4">
+        <div className="text-center max-w-md bg-white p-8 rounded-2xl border border-mcn-gray-200 shadow-sm">
+          <ShoppingBag className="w-12 h-12 text-mcn-blue mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-mcn-charcoal mb-2">Please Sign In</h2>
+          <p className="text-sm text-mcn-gray-500 mb-6">You need to be signed in to view your orders.</p>
+          <Link
+            to="/login"
+            className="inline-block bg-mcn-blue hover:bg-mcn-blue-dark text-white font-bold text-sm px-6 py-3 rounded-lg transition-colors"
+          >
+            Sign In
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center pt-24">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-mcn-gray-50 flex items-center justify-center pt-24">
+        <div className="w-12 h-12 border-4 border-mcn-blue border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
