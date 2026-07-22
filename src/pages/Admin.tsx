@@ -1576,15 +1576,16 @@ export default function Admin() {
                         <h2 className="text-lg font-extrabold text-mcn-charcoal">Promo Banner Section</h2>
                         <p className="text-xs text-mcn-gray-500">Master switch to show or hide all promotional banners across the homepage.</p>
                       </div>
-                      <label className="flex items-center gap-2 cursor-pointer bg-mcn-gray-50 px-3 py-2 rounded-lg border border-mcn-gray-200">
-                        <input
-                          type="checkbox"
-                          checked={promoSectionEnabled}
-                          onChange={(e) => handleTogglePromoSection(e.target.checked)}
-                          className="w-4 h-4 text-mcn-blue rounded focus:ring-mcn-blue"
-                        />
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePromoSection(!promoSectionEnabled)}
+                        className="flex items-center gap-3 cursor-pointer bg-mcn-gray-50 px-3 py-2 rounded-lg border border-mcn-gray-200"
+                      >
                         <span className="text-sm font-bold text-mcn-charcoal">Show Section on Homepage</span>
-                      </label>
+                        <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${promoSectionEnabled ? 'bg-mcn-blue' : 'bg-mcn-gray-300'}`}>
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${promoSectionEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                        </div>
+                      </button>
                     </div>
 
                     {/* Multi Banners List Header */}
@@ -2407,17 +2408,16 @@ export default function Admin() {
                     />
                   </div>
 
-                  <div className="flex items-center gap-2 pt-2">
-                    <input
-                      type="checkbox"
-                      id="coupon-active"
-                      checked={couponFields.active}
-                      onChange={(e) => setCouponFields((prev) => ({ ...prev, active: e.target.checked }))}
-                      className="w-4 h-4 text-mcn-blue border-mcn-gray-300 rounded focus:ring-mcn-blue"
-                    />
-                    <label htmlFor="coupon-active" className="text-xs font-bold text-mcn-charcoal">
-                      Active (Allow checkout validation)
-                    </label>
+                  <div className="flex items-center gap-3 pt-2">
+                    <span className="text-xs font-bold text-mcn-charcoal">Active (Allow checkout validation)</span>
+                    <button
+                      type="button"
+                      onClick={() => setCouponFields((prev) => ({ ...prev, active: !prev.active }))}
+                      className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                      style={{ backgroundColor: couponFields.active ? '#2563eb' : '#d1d5db' }}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${couponFields.active ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
                   </div>
                 </div>
               </form>
@@ -2641,17 +2641,16 @@ export default function Admin() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 pt-1">
-                    <input
-                      type="checkbox"
-                      id="banner-enabled"
-                      checked={bannerFields.enabled}
-                      onChange={(e) => setBannerFields((prev) => ({ ...prev, enabled: e.target.checked }))}
-                      className="w-4 h-4 text-mcn-blue border-mcn-gray-300 rounded focus:ring-mcn-blue"
-                    />
-                    <label htmlFor="banner-enabled" className="text-xs font-bold text-mcn-charcoal">
-                      Enabled (Eligible to display when active)
-                    </label>
+                  <div className="flex items-center gap-3 pt-1">
+                    <span className="text-xs font-bold text-mcn-charcoal">Enabled (Eligible to display when active)</span>
+                    <button
+                      type="button"
+                      onClick={() => setBannerFields((prev) => ({ ...prev, enabled: !prev.enabled }))}
+                      className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                      style={{ backgroundColor: bannerFields.enabled ? '#2563eb' : '#d1d5db' }}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${bannerFields.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
                   </div>
 
                   {/* Media / Image & GIF Override Section */}

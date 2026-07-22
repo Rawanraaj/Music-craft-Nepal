@@ -68,7 +68,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [slides, setSlides] = useState<any[]>(HERO_SLIDES_DEFAULT);
   const [promoSectionEnabled, setPromoSectionEnabled] = useState(true);
-  const [activeBanner, setActiveBanner] = useState<PromoBanner | null>(null);
+  const [activeBanners, setActiveBanners] = useState<PromoBanner[]>([]);
+  const [promoSlide, setPromoSlide] = useState(0);
 
   // SEO setup
   useSEO({
@@ -97,18 +98,27 @@ export default function Home() {
     fetchActivePromoBanners()
       .then((banners) => {
         const todayStr = new Date().toISOString().split('T')[0];
-        const eligible = banners.filter((b) => {
-          if (!b.enabled) return false;
-          if (b.start_date && todayStr < b.start_date) return false;
-          if (b.end_date && todayStr > b.end_date) return false;
-          return true;
-        });
-        if (eligible.length > 0) {
-          setActiveBanner(eligible[0]);
-        }
+        const eligible = banners
+          .filter((b) => {
+            if (!b.enabled) return false;
+            if (b.start_date && todayStr < b.start_date) return false;
+            if (b.end_date && todayStr > b.end_date) return false;
+            return true;
+          })
+          .sort((a, b) => a.display_order - b.display_order);
+        setActiveBanners(eligible);
       })
       .catch((err) => console.error('Error fetching active promo banners:', err));
   }, []);
+
+  // Auto-advance promo banner slideshow (only when 2+ banners)
+  useEffect(() => {
+    if (activeBanners.length < 2) return;
+    const timer = setInterval(() => {
+      setPromoSlide((prev) => (prev + 1) % activeBanners.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [activeBanners]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -224,73 +234,104 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Dynamic Promo Banner */}
-      {promoSectionEnabled && activeBanner && (
+      {/* Dynamic Promo Banner Slideshow */}
+      {promoSectionEnabled && activeBanners.length > 0 && (
         <section className="py-12 md:py-16 bg-white">
           <div className="max-w-7xl mx-auto px-4">
-            {activeBanner.image_url ? (
-              <div className="relative rounded-2xl overflow-hidden shadow-md">
-                {activeBanner.button_link ? (
-                  <Link to={activeBanner.button_link}>
-                    <img
-                      src={activeBanner.image_url}
-                      alt={activeBanner.title}
-                      className="w-full h-auto object-cover max-h-[420px] rounded-2xl"
-                    />
-                  </Link>
-                ) : (
-                  <img
-                    src={activeBanner.image_url}
-                    alt={activeBanner.title}
-                    className="w-full h-auto object-cover max-h-[420px] rounded-2xl"
-                  />
-                )}
-              </div>
-            ) : (
-              <div className="relative bg-mcn-mint rounded-2xl overflow-hidden p-8 md:p-12">
-                <div className="flex flex-col md:flex-row items-center justify-between gap-8">
-                  <div className="text-center md:text-left">
-                    {(activeBanner.badge_en || activeBanner.badge_ne) && (
-                      <span className="inline-block bg-mcn-dark text-mcn-mint text-xs font-bold px-3 py-1 rounded-full mb-3">
-                        {language === 'ne' ? (activeBanner.badge_ne || activeBanner.badge_en) : activeBanner.badge_en}
-                      </span>
-                    )}
-                    <h2 className="text-2xl md:text-4xl font-extrabold text-mcn-dark mb-2">
-                      {language === 'ne' ? (activeBanner.headline_ne || activeBanner.headline_en) : activeBanner.headline_en}
-                    </h2>
-                    <p className="text-mcn-dark/80 text-base md:text-lg mb-6 max-w-md">
-                      {language === 'ne' ? (activeBanner.subcopy_ne || activeBanner.subcopy_en) : activeBanner.subcopy_en}
-                    </p>
-                    {activeBanner.button_link && (
-                      <Link
-                        to={activeBanner.button_link}
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-mcn-dark text-white font-bold rounded-lg hover:bg-mcn-charcoal transition-colors"
-                      >
-                        {language === 'ne' ? (activeBanner.button_text_ne || activeBanner.button_text_en) : activeBanner.button_text_en}
-                        <ArrowRight className="w-5 h-5" />
-                      </Link>
-                    )}
-                  </div>
-                  {/* Decorative circle */}
-                  {activeBanner.discount_percent !== null && activeBanner.discount_percent !== undefined && activeBanner.discount_percent > 0 && (
-                    <div className="relative w-48 h-48 md:w-64 md:h-64 shrink-0">
-                      <div className="absolute inset-0 rounded-full bg-white/30 flex items-center justify-center">
-                        <div className="w-32 h-32 md:w-44 md:h-44 rounded-full bg-white flex items-center justify-center shadow-lg">
-                          <div className="text-center">
-                            <span className="block text-4xl md:text-6xl font-extrabold text-mcn-mint-dark">
-                              {activeBanner.discount_percent}%
+            <div className="relative">
+              {activeBanners.map((banner, idx) => (
+                <div
+                  key={banner.id}
+                  className={`transition-opacity duration-700 ${
+                    activeBanners.length === 1
+                      ? ''
+                      : idx === promoSlide
+                        ? 'opacity-100'
+                        : 'opacity-0 pointer-events-none absolute inset-0'
+                  }`}
+                >
+                  {banner.image_url ? (
+                    <div className="relative rounded-2xl overflow-hidden shadow-md">
+                      {banner.button_link ? (
+                        <Link to={banner.button_link}>
+                          <img
+                            src={banner.image_url}
+                            alt={banner.title}
+                            className="w-full h-auto object-cover max-h-[420px] rounded-2xl"
+                          />
+                        </Link>
+                      ) : (
+                        <img
+                          src={banner.image_url}
+                          alt={banner.title}
+                          className="w-full h-auto object-cover max-h-[420px] rounded-2xl"
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <div className="relative bg-mcn-mint rounded-2xl overflow-hidden p-8 md:p-12">
+                      <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+                        <div className="text-center md:text-left">
+                          {(banner.badge_en || banner.badge_ne) && (
+                            <span className="inline-block bg-mcn-dark text-mcn-mint text-xs font-bold px-3 py-1 rounded-full mb-3">
+                              {language === 'ne' ? (banner.badge_ne || banner.badge_en) : banner.badge_en}
                             </span>
-                            <span className="block text-sm md:text-base font-bold text-mcn-dark uppercase tracking-wide">
-                              OFF
-                            </span>
-                          </div>
+                          )}
+                          <h2 className="text-2xl md:text-4xl font-extrabold text-mcn-dark mb-2">
+                            {language === 'ne' ? (banner.headline_ne || banner.headline_en) : banner.headline_en}
+                          </h2>
+                          <p className="text-mcn-dark/80 text-base md:text-lg mb-6 max-w-md">
+                            {language === 'ne' ? (banner.subcopy_ne || banner.subcopy_en) : banner.subcopy_en}
+                          </p>
+                          {banner.button_link && (
+                            <Link
+                              to={banner.button_link}
+                              className="inline-flex items-center gap-2 px-6 py-3 bg-mcn-dark text-white font-bold rounded-lg hover:bg-mcn-charcoal transition-colors"
+                            >
+                              {language === 'ne' ? (banner.button_text_ne || banner.button_text_en) : banner.button_text_en}
+                              <ArrowRight className="w-5 h-5" />
+                            </Link>
+                          )}
                         </div>
+                        {/* Decorative circle */}
+                        {banner.discount_percent !== null && banner.discount_percent !== undefined && banner.discount_percent > 0 && (
+                          <div className="relative w-48 h-48 md:w-64 md:h-64 shrink-0">
+                            <div className="absolute inset-0 rounded-full bg-white/30 flex items-center justify-center">
+                              <div className="w-32 h-32 md:w-44 md:h-44 rounded-full bg-white flex items-center justify-center shadow-lg">
+                                <div className="text-center">
+                                  <span className="block text-4xl md:text-6xl font-extrabold text-mcn-mint-dark">
+                                    {banner.discount_percent}%
+                                  </span>
+                                  <span className="block text-sm md:text-base font-bold text-mcn-dark uppercase tracking-wide">
+                                    OFF
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
                 </div>
-              </div>
-            )}
+              ))}
+
+              {/* Slideshow dot indicators (only when 2+ banners) */}
+              {activeBanners.length > 1 && (
+                <div className="flex justify-center gap-2 mt-5">
+                  {activeBanners.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setPromoSlide(idx)}
+                      className={`h-2 rounded-full transition-all ${
+                        idx === promoSlide ? 'w-8 bg-mcn-dark' : 'w-2 bg-mcn-gray-300'
+                      }`}
+                      aria-label={`Go to promo slide ${idx + 1}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </section>
       )}
