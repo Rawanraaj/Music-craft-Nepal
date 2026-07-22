@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Product, Order, WholesaleInquiry, Review, Article } from '../types';
+import type { Product, Order, WholesaleInquiry, Review, Article, PromoBanner } from '../types';
 
 // Helper to map DB Product to Frontend Product
 export function mapDbProduct(p: any): Product {
@@ -587,6 +587,132 @@ export async function updateArticle(id: string, article: Partial<Article>): Prom
 export async function deleteArticle(id: string): Promise<void> {
   const { error } = await supabase.from('articles').delete().eq('id', id);
   if (error) throw error;
+}
+
+// PROMO BANNERS API
+export function mapDbPromoBanner(b: any): PromoBanner {
+  return {
+    id: b.id,
+    title: b.title,
+    badge_en: b.badge_en || '',
+    badge_ne: b.badge_ne || '',
+    headline_en: b.headline_en || '',
+    headline_ne: b.headline_ne || '',
+    subcopy_en: b.subcopy_en || '',
+    subcopy_ne: b.subcopy_ne || '',
+    discount_percent: b.discount_percent !== null && b.discount_percent !== undefined ? Number(b.discount_percent) : null,
+    button_text_en: b.button_text_en || '',
+    button_text_ne: b.button_text_ne || '',
+    button_link: b.button_link || '',
+    image_url: b.image_url || null,
+    start_date: b.start_date || null,
+    end_date: b.end_date || null,
+    enabled: b.enabled !== false,
+    display_order: Number(b.display_order || 0),
+    created_at: b.created_at,
+  };
+}
+
+export async function fetchActivePromoBanners(): Promise<PromoBanner[]> {
+  const { data, error } = await supabase
+    .from('promo_banners')
+    .select('*')
+    .eq('enabled', true)
+    .order('display_order', { ascending: true });
+
+  if (error) throw error;
+  return (data || []).map(mapDbPromoBanner);
+}
+
+export async function fetchAllPromoBanners(): Promise<PromoBanner[]> {
+  const { data, error } = await supabase
+    .from('promo_banners')
+    .select('*')
+    .order('display_order', { ascending: true });
+
+  if (error) throw error;
+  return (data || []).map(mapDbPromoBanner);
+}
+
+export async function createPromoBanner(banner: Omit<PromoBanner, 'id' | 'created_at'>): Promise<PromoBanner> {
+  const { data, error } = await supabase
+    .from('promo_banners')
+    .insert([{
+      title: banner.title,
+      badge_en: banner.badge_en || '',
+      badge_ne: banner.badge_ne || '',
+      headline_en: banner.headline_en || '',
+      headline_ne: banner.headline_ne || '',
+      subcopy_en: banner.subcopy_en || '',
+      subcopy_ne: banner.subcopy_ne || '',
+      discount_percent: banner.discount_percent !== undefined ? banner.discount_percent : null,
+      button_text_en: banner.button_text_en || '',
+      button_text_ne: banner.button_text_ne || '',
+      button_link: banner.button_link || '',
+      image_url: banner.image_url || null,
+      start_date: banner.start_date || null,
+      end_date: banner.end_date || null,
+      enabled: banner.enabled,
+      display_order: banner.display_order,
+    }])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return mapDbPromoBanner(data);
+}
+
+export async function updatePromoBanner(id: string, banner: Partial<PromoBanner>): Promise<PromoBanner> {
+  const updates: any = {};
+  if (banner.title !== undefined) updates.title = banner.title;
+  if (banner.badge_en !== undefined) updates.badge_en = banner.badge_en;
+  if (banner.badge_ne !== undefined) updates.badge_ne = banner.badge_ne;
+  if (banner.headline_en !== undefined) updates.headline_en = banner.headline_en;
+  if (banner.headline_ne !== undefined) updates.headline_ne = banner.headline_ne;
+  if (banner.subcopy_en !== undefined) updates.subcopy_en = banner.subcopy_en;
+  if (banner.subcopy_ne !== undefined) updates.subcopy_ne = banner.subcopy_ne;
+  if (banner.discount_percent !== undefined) updates.discount_percent = banner.discount_percent;
+  if (banner.button_text_en !== undefined) updates.button_text_en = banner.button_text_en;
+  if (banner.button_text_ne !== undefined) updates.button_text_ne = banner.button_text_ne;
+  if (banner.button_link !== undefined) updates.button_link = banner.button_link;
+  if (banner.image_url !== undefined) updates.image_url = banner.image_url;
+  if (banner.start_date !== undefined) updates.start_date = banner.start_date;
+  if (banner.end_date !== undefined) updates.end_date = banner.end_date;
+  if (banner.enabled !== undefined) updates.enabled = banner.enabled;
+  if (banner.display_order !== undefined) updates.display_order = banner.display_order;
+
+  const { data, error } = await supabase
+    .from('promo_banners')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return mapDbPromoBanner(data);
+}
+
+export async function deletePromoBanner(id: string): Promise<void> {
+  const { error } = await supabase.from('promo_banners').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function uploadBannerImage(file: File): Promise<string> {
+  const fileExt = file.name.split('.').pop();
+  const fileName = `banner_${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+  const filePath = `banners/${fileName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('product-images')
+    .upload(filePath, file);
+
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage
+    .from('product-images')
+    .getPublicUrl(filePath);
+
+  return data.publicUrl;
 }
 
 

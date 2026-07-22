@@ -57,10 +57,15 @@ import {
   createArticle,
   updateArticle,
   deleteArticle,
+  fetchAllPromoBanners,
+  createPromoBanner,
+  updatePromoBanner,
+  deletePromoBanner,
+  uploadBannerImage,
 } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { CATEGORIES } from '../types';
-import type { Product, Order, WholesaleInquiry, Article } from '../types';
+import type { Product, Order, WholesaleInquiry, Article, PromoBanner } from '../types';
 
 type AdminTab = 'overview' | 'products' | 'orders' | 'inquiries' | 'coupons' | 'articles' | 'settings';
 
@@ -160,32 +165,51 @@ export default function Admin() {
     email: { en: '', ne: '' },
     hours: { en: '', ne: '' },
   });
-  const [cmsPromoBanner, setCmsPromoBanner] = useState({
-    enabled: true,
-    badge: { en: 'LIMITED TIME', ne: 'सीमित समय' },
-    headline: { en: 'Monsoon Sale — Up to 30% Off', ne: 'मनसुन अफर — ३०% सम्म छुट' },
-    subcopy: { en: 'Save on select traditional instruments. Handcrafted quality, unbeatable prices.', ne: 'नेपाली मौलिक बाजाहरूमा विशेष छुट।' },
-    discountPercent: 30,
-    buttonText: { en: 'Shop Deals', ne: 'अफर हेर्नुहोस्' },
-    buttonLink: '/shop?deals=true',
-  });
+
   const [settingsLoading, setSettingsLoading] = useState(false);
+
+  // Multi Promo Banner States
+  const [promoBanners, setPromoBanners] = useState<PromoBanner[]>([]);
+  const [promoSectionEnabled, setPromoSectionEnabled] = useState(true);
+  const [isBannerFormOpen, setIsBannerFormOpen] = useState(false);
+  const [editingBanner, setEditingBanner] = useState<PromoBanner | null>(null);
+  const [bannerImageUploading, setBannerImageUploading] = useState(false);
+  const [bannerFields, setBannerFields] = useState({
+    title: '',
+    badge_en: '',
+    badge_ne: '',
+    headline_en: '',
+    headline_ne: '',
+    subcopy_en: '',
+    subcopy_ne: '',
+    discount_percent: '' as number | '',
+    button_text_en: '',
+    button_text_ne: '',
+    button_link: '/shop?deals=true',
+    image_url: '',
+    start_date: '',
+    end_date: '',
+    enabled: true,
+    display_order: 0,
+  });
 
   const loadAllData = async () => {
     setLoadingData(true);
     try {
-      const [prodData, ordData, inqData, coupData, artData] = await Promise.all([
+      const [prodData, ordData, inqData, coupData, artData, bannerData] = await Promise.all([
         fetchProducts(),
         fetchOrders(),
         fetchInquiries(),
         fetchCoupons(),
         fetchArticles(),
+        fetchAllPromoBanners(),
       ]);
       setProducts(prodData);
       setOrders(ordData);
       setInquiries(inqData);
       setCoupons(coupData);
       setArticles(artData);
+      setPromoBanners(bannerData);
     } catch (err) {
       console.error('Error fetching admin dashboard data:', err);
     } finally {
@@ -195,13 +219,16 @@ export default function Admin() {
 
   const loadCmsData = async () => {
     try {
-      const [slides, aboutCopy, aboutImg, contact, promo] = await Promise.all([
+      const [slides, aboutCopy, aboutImg, contact, promoSectionToggle] = await Promise.all([
         fetchSiteContent('hero_slides'),
         fetchSiteContent('about_us_copy'),
         fetchSiteContent('about_story_image'),
         fetchSiteContent('contact_details'),
-        fetchSiteContent('promo_banner'),
+        fetchSiteContent('promo_section_enabled'),
       ]);
+      if (promoSectionToggle !== null && promoSectionToggle !== undefined) {
+        setPromoSectionEnabled(promoSectionToggle !== false);
+      }
       if (slides && Array.isArray(slides)) {
         const formatted = slides.map((s: any) => ({
           image: s.image || '',
@@ -227,17 +254,7 @@ export default function Admin() {
           hours: typeof contact.hours === 'object' ? contact.hours : { en: contact.hours || '', ne: '' },
         });
       }
-      if (promo) {
-        setCmsPromoBanner({
-          enabled: promo.enabled !== false,
-          badge: typeof promo.badge === 'object' ? promo.badge : { en: promo.badge || 'LIMITED TIME', ne: '' },
-          headline: typeof promo.headline === 'object' ? promo.headline : { en: promo.headline || '', ne: '' },
-          subcopy: typeof promo.subcopy === 'object' ? promo.subcopy : { en: promo.subcopy || '', ne: '' },
-          discountPercent: promo.discountPercent || 30,
-          buttonText: typeof promo.buttonText === 'object' ? promo.buttonText : { en: promo.buttonText || '', ne: '' },
-          buttonLink: promo.buttonLink || '/shop?deals=true',
-        });
-      }
+
     } catch (err) {
       console.error('Error loading CMS data:', err);
     }
@@ -568,6 +585,145 @@ export default function Admin() {
     }
   };
 
+  // Promo Banner CRUD Operations
+  const handleTogglePromoSection = async (enabled: boolean) => {
+    setPromoSectionEnabled(enabled);
+    try {
+      await updateSiteContent('promo_section_enabled', enabled);
+      showToast(enabled ? 'Promo banner section enabled' : 'Promo banner section disabled', 'success');
+    } catch (err) {
+      console.error('Failed to toggle promo section:', err);
+      showToast('Failed to update promo section status', 'error');
+    }
+  };
+
+  const handleOpenAddBannerForm = () => {
+    setEditingBanner(null);
+    setBannerFields({
+      title: '',
+      badge_en: 'LIMITED TIME',
+      badge_ne: 'सीमित समय',
+      headline_en: '',
+      headline_ne: '',
+      subcopy_en: '',
+      subcopy_ne: '',
+      discount_percent: '',
+      button_text_en: 'Shop Deals',
+      button_text_ne: 'अफर हेर्नुहोस्',
+      button_link: '/shop?deals=true',
+      image_url: '',
+      start_date: '',
+      end_date: '',
+      enabled: true,
+      display_order: promoBanners.length > 0 ? Math.max(...promoBanners.map(b => b.display_order)) + 1 : 0,
+    });
+    setIsBannerFormOpen(true);
+  };
+
+  const handleOpenEditBannerForm = (banner: PromoBanner) => {
+    setEditingBanner(banner);
+    setBannerFields({
+      title: banner.title,
+      badge_en: banner.badge_en || '',
+      badge_ne: banner.badge_ne || '',
+      headline_en: banner.headline_en || '',
+      headline_ne: banner.headline_ne || '',
+      subcopy_en: banner.subcopy_en || '',
+      subcopy_ne: banner.subcopy_ne || '',
+      discount_percent: banner.discount_percent !== null && banner.discount_percent !== undefined ? banner.discount_percent : '',
+      button_text_en: banner.button_text_en || '',
+      button_text_ne: banner.button_text_ne || '',
+      button_link: banner.button_link || '',
+      image_url: banner.image_url || '',
+      start_date: banner.start_date || '',
+      end_date: banner.end_date || '',
+      enabled: banner.enabled,
+      display_order: banner.display_order,
+    });
+    setIsBannerFormOpen(true);
+  };
+
+  const handleDeleteBannerItem = async (id: string, title: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Promo Banner',
+      message: `Are you sure you want to delete banner "${title}"?`,
+      onConfirm: async () => {
+        try {
+          await deletePromoBanner(id);
+          setPromoBanners((prev) => prev.filter((b) => b.id !== id));
+          showToast('Promo banner deleted successfully.', 'success');
+        } catch (err) {
+          console.error('Failed to delete promo banner:', err);
+          showToast('Failed to delete promo banner.', 'error');
+        } finally {
+          setConfirmModal(null);
+        }
+      },
+    });
+  };
+
+  const handleBannerImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    setBannerImageUploading(true);
+    try {
+      const url = await uploadBannerImage(e.target.files[0]);
+      setBannerFields((prev) => ({ ...prev, image_url: url }));
+      showToast('Banner image uploaded successfully!', 'success');
+    } catch (err) {
+      console.error('Failed to upload banner image:', err);
+      showToast('Failed to upload banner image.', 'error');
+    } finally {
+      setBannerImageUploading(false);
+    }
+  };
+
+  const handleSaveBanner = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bannerFields.title.trim()) {
+      showToast('Banner title is required.', 'error');
+      return;
+    }
+    const cleanData = {
+      title: bannerFields.title.trim(),
+      badge_en: bannerFields.badge_en,
+      badge_ne: bannerFields.badge_ne,
+      headline_en: bannerFields.headline_en,
+      headline_ne: bannerFields.headline_ne,
+      subcopy_en: bannerFields.subcopy_en,
+      subcopy_ne: bannerFields.subcopy_ne,
+      discount_percent: bannerFields.discount_percent !== '' ? Number(bannerFields.discount_percent) : null,
+      button_text_en: bannerFields.button_text_en,
+      button_text_ne: bannerFields.button_text_ne,
+      button_link: bannerFields.button_link,
+      image_url: bannerFields.image_url.trim() || null,
+      start_date: bannerFields.start_date || null,
+      end_date: bannerFields.end_date || null,
+      enabled: bannerFields.enabled,
+      display_order: Number(bannerFields.display_order),
+    };
+
+    try {
+      if (editingBanner) {
+        const updated = await updatePromoBanner(editingBanner.id, cleanData);
+        setPromoBanners((prev) =>
+          prev.map((b) => (b.id === editingBanner.id ? updated : b)).sort((a, b) => a.display_order - b.display_order)
+        );
+        showToast('Promo banner updated successfully.', 'success');
+      } else {
+        const created = await createPromoBanner(cleanData);
+        setPromoBanners((prev) =>
+          [...prev, created].sort((a, b) => a.display_order - b.display_order)
+        );
+        showToast('Promo banner created successfully.', 'success');
+      }
+      setIsBannerFormOpen(false);
+    } catch (err: any) {
+      console.error('Error saving promo banner:', err);
+      showToast(`Error saving banner: ${err.message || 'Unknown error'}`, 'error');
+    }
+  };
+
   // CMS Save Settings
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -578,7 +734,6 @@ export default function Admin() {
         updateSiteContent('about_us_copy', cmsAboutCopy),
         updateSiteContent('about_story_image', cmsAboutImage),
         updateSiteContent('contact_details', cmsContactDetails),
-        updateSiteContent('promo_banner', cmsPromoBanner),
       ]);
       showToast('CMS settings saved successfully!', 'success');
     } catch (err) {
@@ -1414,161 +1569,140 @@ export default function Admin() {
             {activeTab === 'settings' && (
               <div className="max-w-4xl space-y-6">
                 <form onSubmit={handleSaveSettings} className="space-y-6">
-                  {/* Promo Banner Settings */}
-                  <div className="bg-white rounded-xl border border-mcn-gray-200 p-6">
-                    <div className="flex items-center justify-between mb-4">
+                  {/* Global Master Promo Section Toggle & Multi Promo Banner Manager */}
+                  <div className="bg-white rounded-xl border border-mcn-gray-200 p-6 space-y-6">
+                    <div className="flex items-center justify-between pb-4 border-b border-mcn-gray-100">
                       <div>
-                        <h2 className="text-lg font-extrabold text-mcn-charcoal">Promo Banner (Monsoon Sale)</h2>
-                        <p className="text-xs text-mcn-gray-500">Control the home page promotional callout banner.</p>
+                        <h2 className="text-lg font-extrabold text-mcn-charcoal">Promo Banner Section</h2>
+                        <p className="text-xs text-mcn-gray-500">Master switch to show or hide all promotional banners across the homepage.</p>
                       </div>
-                      <label className="flex items-center gap-2 cursor-pointer">
+                      <label className="flex items-center gap-2 cursor-pointer bg-mcn-gray-50 px-3 py-2 rounded-lg border border-mcn-gray-200">
                         <input
                           type="checkbox"
-                          checked={cmsPromoBanner.enabled !== false}
-                          onChange={(e) => setCmsPromoBanner((prev) => ({ ...prev, enabled: e.target.checked }))}
+                          checked={promoSectionEnabled}
+                          onChange={(e) => handleTogglePromoSection(e.target.checked)}
                           className="w-4 h-4 text-mcn-blue rounded focus:ring-mcn-blue"
                         />
-                        <span className="text-sm font-bold text-mcn-charcoal">Show Banner</span>
+                        <span className="text-sm font-bold text-mcn-charcoal">Show Section on Homepage</span>
                       </label>
                     </div>
 
-                    <div className="space-y-4 pt-2 border-t border-mcn-gray-100">
-                      <div className="grid sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Badge (EN)</label>
-                          <input
-                            type="text"
-                            value={typeof cmsPromoBanner.badge === 'object' ? cmsPromoBanner.badge.en || '' : cmsPromoBanner.badge || ''}
-                            onChange={(e) =>
-                              setCmsPromoBanner((prev: any) => ({
-                                ...prev,
-                                badge: { ...prev.badge, en: e.target.value },
-                              }))
-                            }
-                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Badge (Nepali / नेपाली)</label>
-                          <input
-                            type="text"
-                            value={typeof cmsPromoBanner.badge === 'object' ? cmsPromoBanner.badge.ne || '' : ''}
-                            onChange={(e) =>
-                              setCmsPromoBanner((prev: any) => ({
-                                ...prev,
-                                badge: { ...prev.badge, ne: e.target.value },
-                              }))
-                            }
-                            placeholder="e.g. सीमित समय"
-                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
-                          />
-                        </div>
+                    {/* Multi Banners List Header */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-base font-extrabold text-mcn-charcoal">All Banners ({promoBanners.length})</h3>
+                        <p className="text-xs text-mcn-gray-500">Manage multiple banners, date scheduling, priority order, and media overrides.</p>
                       </div>
+                      <button
+                        type="button"
+                        onClick={handleOpenAddBannerForm}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-mcn-blue hover:bg-mcn-blue-dark text-white text-xs font-bold rounded-lg transition-colors"
+                      >
+                        <Plus className="w-4 h-4" /> Add Banner
+                      </button>
+                    </div>
 
-                      <div className="grid sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Headline (EN)</label>
-                          <input
-                            type="text"
-                            value={typeof cmsPromoBanner.headline === 'object' ? cmsPromoBanner.headline.en || '' : cmsPromoBanner.headline || ''}
-                            onChange={(e) =>
-                              setCmsPromoBanner((prev: any) => ({
-                                ...prev,
-                                headline: { ...prev.headline, en: e.target.value },
-                              }))
-                            }
-                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Headline (Nepali / नेपाली)</label>
-                          <input
-                            type="text"
-                            value={typeof cmsPromoBanner.headline === 'object' ? cmsPromoBanner.headline.ne || '' : ''}
-                            onChange={(e) =>
-                              setCmsPromoBanner((prev: any) => ({
-                                ...prev,
-                                headline: { ...prev.headline, ne: e.target.value },
-                              }))
-                            }
-                            placeholder="e.g. मनसुन अफर — ३०% सम्म छुट"
-                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
-                          />
-                        </div>
-                      </div>
+                    {/* Banners Table */}
+                    <div className="border border-mcn-gray-200 rounded-xl overflow-hidden">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-mcn-gray-50 text-[11px] font-bold text-mcn-gray-500 uppercase border-b border-mcn-gray-200">
+                            <th className="px-4 py-3">Order</th>
+                            <th className="px-4 py-3">Title</th>
+                            <th className="px-4 py-3">Type</th>
+                            <th className="px-4 py-3">Date Range</th>
+                            <th className="px-4 py-3">Status</th>
+                            <th className="px-4 py-3">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-mcn-gray-100 text-xs font-semibold">
+                          {promoBanners.map((banner) => {
+                            const todayStr = new Date().toISOString().split('T')[0];
+                            const isExpired = banner.end_date && todayStr > banner.end_date;
+                            const isUpcoming = banner.start_date && todayStr < banner.start_date;
 
-                      <div className="grid sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Subcopy (EN)</label>
-                          <textarea
-                            rows={2}
-                            value={typeof cmsPromoBanner.subcopy === 'object' ? cmsPromoBanner.subcopy.en || '' : cmsPromoBanner.subcopy || ''}
-                            onChange={(e) =>
-                              setCmsPromoBanner((prev: any) => ({
-                                ...prev,
-                                subcopy: { ...prev.subcopy, en: e.target.value },
-                              }))
-                            }
-                            className="w-full p-2.5 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Subcopy (Nepali / नेपाली)</label>
-                          <textarea
-                            rows={2}
-                            value={typeof cmsPromoBanner.subcopy === 'object' ? cmsPromoBanner.subcopy.ne || '' : ''}
-                            onChange={(e) =>
-                              setCmsPromoBanner((prev: any) => ({
-                                ...prev,
-                                subcopy: { ...prev.subcopy, ne: e.target.value },
-                              }))
-                            }
-                            placeholder="नेपाली विवरण"
-                            className="w-full p-2.5 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid sm:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Discount %</label>
-                          <input
-                            type="number"
-                            value={cmsPromoBanner.discountPercent || 30}
-                            onChange={(e) => setCmsPromoBanner((prev) => ({ ...prev, discountPercent: Number(e.target.value) }))}
-                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Button Text (EN)</label>
-                          <input
-                            type="text"
-                            value={typeof cmsPromoBanner.buttonText === 'object' ? cmsPromoBanner.buttonText.en || '' : cmsPromoBanner.buttonText || ''}
-                            onChange={(e) =>
-                              setCmsPromoBanner((prev: any) => ({
-                                ...prev,
-                                buttonText: { ...prev.buttonText, en: e.target.value },
-                              }))
-                            }
-                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Button Text (NE)</label>
-                          <input
-                            type="text"
-                            value={typeof cmsPromoBanner.buttonText === 'object' ? cmsPromoBanner.buttonText.ne || '' : ''}
-                            onChange={(e) =>
-                              setCmsPromoBanner((prev: any) => ({
-                                ...prev,
-                                buttonText: { ...prev.buttonText, ne: e.target.value },
-                              }))
-                            }
-                            placeholder="अफर हेर्नुहोस्"
-                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
-                          />
-                        </div>
-                      </div>
+                            return (
+                              <tr key={banner.id} className="hover:bg-mcn-gray-50/50 transition-colors">
+                                <td className="px-4 py-3 font-mono font-bold text-mcn-blue">
+                                  #{banner.display_order}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <p className="font-bold text-mcn-charcoal">{banner.title}</p>
+                                  {banner.headline_en && (
+                                    <p className="text-[11px] text-mcn-gray-400 truncate max-w-[200px]">{banner.headline_en}</p>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3">
+                                  {banner.image_url ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">
+                                      Image/GIF Banner
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">
+                                      Text Layout
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-mcn-gray-500">
+                                  {banner.start_date || banner.end_date ? (
+                                    <span>
+                                      {banner.start_date || 'Any'} to {banner.end_date || 'Any'}
+                                      {isExpired && <span className="block text-[10px] font-bold text-mcn-red">Expired</span>}
+                                      {isUpcoming && <span className="block text-[10px] font-bold text-amber-600">Upcoming</span>}
+                                    </span>
+                                  ) : (
+                                    <span className="text-mcn-gray-400">Always Eligible</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      const updated = await updatePromoBanner(banner.id, { enabled: !banner.enabled });
+                                      setPromoBanners((prev) => prev.map((b) => (b.id === banner.id ? updated : b)));
+                                      showToast(`Banner ${updated.enabled ? 'enabled' : 'disabled'}.`, 'success');
+                                    }}
+                                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition-colors ${
+                                      banner.enabled
+                                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                    }`}
+                                  >
+                                    {banner.enabled ? 'Enabled' : 'Disabled'}
+                                  </button>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditBannerForm(banner)}
+                                      className="text-mcn-gray-500 hover:text-mcn-blue transition-colors p-1"
+                                      aria-label="Edit banner"
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteBannerItem(banner.id, banner.title)}
+                                      className="text-mcn-red hover:text-red-700 transition-colors p-1"
+                                      aria-label="Delete banner"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {promoBanners.length === 0 && (
+                            <tr>
+                              <td colSpan={6} className="text-center py-8 text-sm text-mcn-gray-400">
+                                No promo banners created yet. Click "+ Add Banner" to create your first promotion.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
 
@@ -2441,6 +2575,272 @@ export default function Admin() {
                   className="px-5 py-2.5 bg-mcn-blue text-white text-sm font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors"
                 >
                   {editingArticle ? 'Save Changes' : 'Create Article'}
+                </button>
+              </footer>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Slide-over Form for Add / Edit Promo Banner */}
+      {isBannerFormOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setIsBannerFormOpen(false)} />
+          <div className="absolute inset-y-0 right-0 max-w-full flex">
+            <div className="w-screen max-w-2xl bg-white shadow-2xl flex flex-col">
+              <header className="px-6 py-5 bg-mcn-dark text-white flex items-center justify-between">
+                <h2 className="text-lg font-extrabold">{editingBanner ? 'Edit Promo Banner' : 'Add New Promo Banner'}</h2>
+                <button onClick={() => setIsBannerFormOpen(false)} className="text-white hover:text-mcn-red transition-colors">
+                  <X className="w-6 h-6" />
+                </button>
+              </header>
+
+              <form onSubmit={handleSaveBanner} className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="space-y-4">
+                  {/* Basic & Scheduling Info */}
+                  <div>
+                    <label className="block text-xs font-bold text-mcn-charcoal mb-1">Banner Title * (Internal Admin Label)</label>
+                    <input
+                      required
+                      type="text"
+                      placeholder="e.g. Dashain Sale 2026"
+                      value={bannerFields.title}
+                      onChange={(e) => setBannerFields((prev) => ({ ...prev, title: e.target.value }))}
+                      className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                    />
+                  </div>
+
+                  <div className="grid sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-mcn-charcoal mb-1">Display Order (Priority)</label>
+                      <input
+                        type="number"
+                        value={bannerFields.display_order}
+                        onChange={(e) => setBannerFields((prev) => ({ ...prev, display_order: Number(e.target.value) }))}
+                        className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                      />
+                      <p className="text-[10px] text-mcn-gray-400 mt-1">Lower numbers show first</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-mcn-charcoal mb-1">Start Date (Optional)</label>
+                      <input
+                        type="date"
+                        value={bannerFields.start_date}
+                        onChange={(e) => setBannerFields((prev) => ({ ...prev, start_date: e.target.value }))}
+                        className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-mcn-charcoal mb-1">End Date (Optional)</label>
+                      <input
+                        type="date"
+                        value={bannerFields.end_date}
+                        onChange={(e) => setBannerFields((prev) => ({ ...prev, end_date: e.target.value }))}
+                        className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="checkbox"
+                      id="banner-enabled"
+                      checked={bannerFields.enabled}
+                      onChange={(e) => setBannerFields((prev) => ({ ...prev, enabled: e.target.checked }))}
+                      className="w-4 h-4 text-mcn-blue border-mcn-gray-300 rounded focus:ring-mcn-blue"
+                    />
+                    <label htmlFor="banner-enabled" className="text-xs font-bold text-mcn-charcoal">
+                      Enabled (Eligible to display when active)
+                    </label>
+                  </div>
+
+                  {/* Media / Image & GIF Override Section */}
+                  <div className="pt-4 border-t border-mcn-gray-200 space-y-3">
+                    <h3 className="text-xs font-extrabold text-mcn-charcoal uppercase tracking-wider">Image / GIF Banner Override</h3>
+                    <p className="text-xs text-mcn-gray-500">Upload a custom full-width banner image or GIF to override the text layout.</p>
+                    
+                    <div className="flex items-center gap-4">
+                      <label className="inline-flex items-center gap-2 px-4 py-2 bg-mcn-gray-100 hover:bg-mcn-gray-200 text-mcn-charcoal font-bold text-xs rounded-lg cursor-pointer border border-mcn-gray-300 transition-colors">
+                        <Upload className="w-4 h-4" />
+                        {bannerImageUploading ? 'Uploading...' : 'Upload Image/GIF'}
+                        <input type="file" accept="image/*" onChange={handleBannerImageUpload} className="hidden" />
+                      </label>
+                      <span className="text-xs text-mcn-gray-400">or enter image URL below</span>
+                    </div>
+
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="https://example.com/banner.gif"
+                        value={bannerFields.image_url}
+                        onChange={(e) => setBannerFields((prev) => ({ ...prev, image_url: e.target.value }))}
+                        className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                      />
+                    </div>
+
+                    {bannerFields.image_url && (
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-blue-800">Media Override Active</span>
+                          <button
+                            type="button"
+                            onClick={() => setBannerFields((prev) => ({ ...prev, image_url: '' }))}
+                            className="text-xs font-bold text-mcn-red hover:underline"
+                          >
+                            Remove Image
+                          </button>
+                        </div>
+                        <img
+                          src={bannerFields.image_url}
+                          alt="Banner preview"
+                          className="w-full max-h-32 object-cover rounded border border-blue-200"
+                        />
+                        <p className="text-[11px] text-blue-700">
+                          This banner will render as this full image/GIF on the homepage instead of text elements.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Text-based Layout Fields */}
+                  <div className="pt-4 border-t border-mcn-gray-200 space-y-4">
+                    <h3 className="text-xs font-extrabold text-mcn-charcoal uppercase tracking-wider">Text Banner Layout Fields</h3>
+                    
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Badge (EN)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. LIMITED TIME"
+                          value={bannerFields.badge_en}
+                          onChange={(e) => setBannerFields((prev) => ({ ...prev, badge_en: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Badge (NE / नेपाली)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. सीमित समय"
+                          value={bannerFields.badge_ne}
+                          onChange={(e) => setBannerFields((prev) => ({ ...prev, badge_ne: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Headline (EN)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Monsoon Sale — Up to 30% Off"
+                          value={bannerFields.headline_en}
+                          onChange={(e) => setBannerFields((prev) => ({ ...prev, headline_en: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Headline (NE / नेपाली)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. मनसुन अफर — ३०% सम्म छुट"
+                          value={bannerFields.headline_ne}
+                          onChange={(e) => setBannerFields((prev) => ({ ...prev, headline_ne: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Subcopy (EN)</label>
+                        <textarea
+                          rows={2}
+                          placeholder="Save on select traditional instruments."
+                          value={bannerFields.subcopy_en}
+                          onChange={(e) => setBannerFields((prev) => ({ ...prev, subcopy_en: e.target.value }))}
+                          className="w-full p-2.5 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Subcopy (NE / नेपाली)</label>
+                        <textarea
+                          rows={2}
+                          placeholder="नेपाली मौलिक बाजाहरूमा विशेष छुट।"
+                          value={bannerFields.subcopy_ne}
+                          onChange={(e) => setBannerFields((prev) => ({ ...prev, subcopy_ne: e.target.value }))}
+                          className="w-full p-2.5 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Button Text (EN)</label>
+                        <input
+                          type="text"
+                          placeholder="Shop Deals"
+                          value={bannerFields.button_text_en}
+                          onChange={(e) => setBannerFields((prev) => ({ ...prev, button_text_en: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Button Text (NE)</label>
+                        <input
+                          type="text"
+                          placeholder="अफर हेर्नुहोस्"
+                          value={bannerFields.button_text_ne}
+                          onChange={(e) => setBannerFields((prev) => ({ ...prev, button_text_ne: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Button Link URL</label>
+                        <input
+                          type="text"
+                          placeholder="/shop?deals=true"
+                          value={bannerFields.button_link}
+                          onChange={(e) => setBannerFields((prev) => ({ ...prev, button_link: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-mcn-charcoal mb-1">Discount % (Badge Circle)</label>
+                      <input
+                        type="number"
+                        placeholder="e.g. 30"
+                        value={bannerFields.discount_percent}
+                        onChange={(e) =>
+                          setBannerFields((prev) => ({
+                            ...prev,
+                            discount_percent: e.target.value !== '' ? Number(e.target.value) : '',
+                          }))
+                        }
+                        className="w-full h-9 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm max-w-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </form>
+
+              <footer className="px-6 py-4 bg-mcn-gray-50 border-t border-mcn-gray-200 flex gap-3 justify-end shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsBannerFormOpen(false)}
+                  className="px-5 py-2.5 border border-mcn-gray-300 text-mcn-charcoal text-sm font-bold rounded-lg hover:bg-mcn-gray-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveBanner}
+                  className="px-5 py-2.5 bg-mcn-blue text-white text-sm font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors"
+                >
+                  {editingBanner ? 'Save Banner' : 'Create Banner'}
                 </button>
               </footer>
             </div>

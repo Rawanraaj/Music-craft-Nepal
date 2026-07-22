@@ -133,7 +133,7 @@ const translations: Record<Language, Record<string, string>> = {
     add_product: 'Add Product',
     add_coupon: 'Add Coupon',
     add_article: 'Add Article',
-    promo_banner_setting: 'Promo Banner (Monsoon Sale)',
+    promo_banner_setting: 'Promo Banners',
   },
   ne: {
     // Navigation & Common
@@ -256,7 +256,7 @@ const translations: Record<Language, Record<string, string>> = {
     add_product: 'उत्पादन थप्नुहोस्',
     add_coupon: 'कुपन थप्नुहोस्',
     add_article: 'लेख थप्नुहोस्',
-    promo_banner_setting: 'प्रोमो ब्यानर (मनसुन सेल)',
+    promo_banner_setting: 'प्रोमो ब्यानरहरू',
   }
 };
 

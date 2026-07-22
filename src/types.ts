@@ -86,6 +86,27 @@ export interface Article {
   category: string;
 }
 
+export interface PromoBanner {
+  id: string;
+  title: string;
+  badge_en?: string;
+  badge_ne?: string;
+  headline_en?: string;
+  headline_ne?: string;
+  subcopy_en?: string;
+  subcopy_ne?: string;
+  discount_percent?: number | null;
+  button_text_en?: string;
+  button_text_ne?: string;
+  button_link?: string;
+  image_url?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  enabled: boolean;
+  display_order: number;
+  created_at?: string;
+}
+
 export const CATEGORIES = [
   'Guitars',
   'Traditional Instruments',

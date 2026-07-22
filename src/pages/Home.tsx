@@ -15,8 +15,8 @@ import {
   Wind,
 } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
-import { fetchProducts, fetchSiteContent } from '../lib/api';
-import type { Product } from '../types';
+import { fetchProducts, fetchSiteContent, fetchActivePromoBanners } from '../lib/api';
+import type { Product, PromoBanner } from '../types';
 import { useSEO } from '../hooks/useSEO';
 
 const HERO_SLIDES_DEFAULT = [
@@ -61,23 +61,14 @@ const SERVICE_ICONS = [
 
 import { useLanguage } from '../context/LanguageContext';
 
-const DEFAULT_PROMO_BANNER = {
-  enabled: true,
-  badge: { en: 'LIMITED TIME', ne: 'सीमित समय' },
-  headline: { en: 'Monsoon Sale — Up to 30% Off', ne: 'मनसुन अफर — ३०% सम्म छुट' },
-  subcopy: { en: 'Save on select traditional instruments. Handcrafted quality, unbeatable prices.', ne: 'नेपाली मौलिक बाजाहरूमा विशेष छुट।' },
-  discountPercent: 30,
-  buttonText: { en: 'Shop Deals', ne: 'अफर हेर्नुहोस्' },
-  buttonLink: '/shop?deals=true',
-};
-
 export default function Home() {
-  const { t, tCms } = useLanguage();
+  const { tCms, language } = useLanguage();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [slides, setSlides] = useState<any[]>(HERO_SLIDES_DEFAULT);
-  const [promoBanner, setPromoBanner] = useState<any>(DEFAULT_PROMO_BANNER);
+  const [promoSectionEnabled, setPromoSectionEnabled] = useState(true);
+  const [activeBanner, setActiveBanner] = useState<PromoBanner | null>(null);
 
   // SEO setup
   useSEO({
@@ -95,13 +86,28 @@ export default function Home() {
       })
       .catch((err) => console.error('Error fetching hero slides:', err));
 
-    fetchSiteContent('promo_banner')
-      .then((data) => {
-        if (data) {
-          setPromoBanner(data);
+    fetchSiteContent('promo_section_enabled')
+      .then((val) => {
+        if (val !== null && val !== undefined) {
+          setPromoSectionEnabled(val !== false);
         }
       })
-      .catch((err) => console.error('Error fetching promo banner:', err));
+      .catch((err) => console.error('Error fetching promo section toggle:', err));
+
+    fetchActivePromoBanners()
+      .then((banners) => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const eligible = banners.filter((b) => {
+          if (!b.enabled) return false;
+          if (b.start_date && todayStr < b.start_date) return false;
+          if (b.end_date && todayStr > b.end_date) return false;
+          return true;
+        });
+        if (eligible.length > 0) {
+          setActiveBanner(eligible[0]);
+        }
+      })
+      .catch((err) => console.error('Error fetching active promo banners:', err));
   }, []);
 
   useEffect(() => {
@@ -219,46 +225,72 @@ export default function Home() {
       </section>
 
       {/* Dynamic Promo Banner */}
-      {promoBanner && promoBanner.enabled !== false && (
+      {promoSectionEnabled && activeBanner && (
         <section className="py-12 md:py-16 bg-white">
           <div className="max-w-7xl mx-auto px-4">
-            <div className="relative bg-mcn-mint rounded-2xl overflow-hidden p-8 md:p-12">
-              <div className="flex flex-col md:flex-row items-center justify-between gap-8">
-                <div className="text-center md:text-left">
-                  <span className="inline-block bg-mcn-dark text-mcn-mint text-xs font-bold px-3 py-1 rounded-full mb-3">
-                    {tCms(promoBanner.badge, 'LIMITED TIME')}
-                  </span>
-                  <h2 className="text-2xl md:text-4xl font-extrabold text-mcn-dark mb-2">
-                    {tCms(promoBanner.headline, 'Monsoon Sale — Up to 30% Off')}
-                  </h2>
-                  <p className="text-mcn-dark/80 text-base md:text-lg mb-6 max-w-md">
-                    {tCms(promoBanner.subcopy, 'Save on select traditional instruments.')}
-                  </p>
-                  <Link
-                    to={promoBanner.buttonLink || '/shop?deals=true'}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-mcn-dark text-white font-bold rounded-lg hover:bg-mcn-charcoal transition-colors"
-                  >
-                    {tCms(promoBanner.buttonText, 'Shop Deals')}
-                    <ArrowRight className="w-5 h-5" />
+            {activeBanner.image_url ? (
+              <div className="relative rounded-2xl overflow-hidden shadow-md">
+                {activeBanner.button_link ? (
+                  <Link to={activeBanner.button_link}>
+                    <img
+                      src={activeBanner.image_url}
+                      alt={activeBanner.title}
+                      className="w-full h-auto object-cover max-h-[420px] rounded-2xl"
+                    />
                   </Link>
-                </div>
-                {/* Decorative circle */}
-                <div className="relative w-48 h-48 md:w-64 md:h-64 shrink-0">
-                  <div className="absolute inset-0 rounded-full bg-white/30 flex items-center justify-center">
-                    <div className="w-32 h-32 md:w-44 md:h-44 rounded-full bg-white flex items-center justify-center shadow-lg">
-                      <div className="text-center">
-                        <span className="block text-4xl md:text-6xl font-extrabold text-mcn-mint-dark">
-                          {promoBanner.discountPercent || 30}%
-                        </span>
-                        <span className="block text-sm md:text-base font-bold text-mcn-dark uppercase tracking-wide">
-                          OFF
-                        </span>
+                ) : (
+                  <img
+                    src={activeBanner.image_url}
+                    alt={activeBanner.title}
+                    className="w-full h-auto object-cover max-h-[420px] rounded-2xl"
+                  />
+                )}
+              </div>
+            ) : (
+              <div className="relative bg-mcn-mint rounded-2xl overflow-hidden p-8 md:p-12">
+                <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+                  <div className="text-center md:text-left">
+                    {(activeBanner.badge_en || activeBanner.badge_ne) && (
+                      <span className="inline-block bg-mcn-dark text-mcn-mint text-xs font-bold px-3 py-1 rounded-full mb-3">
+                        {language === 'ne' ? (activeBanner.badge_ne || activeBanner.badge_en) : activeBanner.badge_en}
+                      </span>
+                    )}
+                    <h2 className="text-2xl md:text-4xl font-extrabold text-mcn-dark mb-2">
+                      {language === 'ne' ? (activeBanner.headline_ne || activeBanner.headline_en) : activeBanner.headline_en}
+                    </h2>
+                    <p className="text-mcn-dark/80 text-base md:text-lg mb-6 max-w-md">
+                      {language === 'ne' ? (activeBanner.subcopy_ne || activeBanner.subcopy_en) : activeBanner.subcopy_en}
+                    </p>
+                    {activeBanner.button_link && (
+                      <Link
+                        to={activeBanner.button_link}
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-mcn-dark text-white font-bold rounded-lg hover:bg-mcn-charcoal transition-colors"
+                      >
+                        {language === 'ne' ? (activeBanner.button_text_ne || activeBanner.button_text_en) : activeBanner.button_text_en}
+                        <ArrowRight className="w-5 h-5" />
+                      </Link>
+                    )}
+                  </div>
+                  {/* Decorative circle */}
+                  {activeBanner.discount_percent !== null && activeBanner.discount_percent !== undefined && activeBanner.discount_percent > 0 && (
+                    <div className="relative w-48 h-48 md:w-64 md:h-64 shrink-0">
+                      <div className="absolute inset-0 rounded-full bg-white/30 flex items-center justify-center">
+                        <div className="w-32 h-32 md:w-44 md:h-44 rounded-full bg-white flex items-center justify-center shadow-lg">
+                          <div className="text-center">
+                            <span className="block text-4xl md:text-6xl font-extrabold text-mcn-mint-dark">
+                              {activeBanner.discount_percent}%
+                            </span>
+                            <span className="block text-sm md:text-base font-bold text-mcn-dark uppercase tracking-wide">
+                              OFF
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </section>
       )}
