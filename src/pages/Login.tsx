@@ -4,7 +4,7 @@ import { Music, Mail, Lock, User, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
-  const { user, login, register, loginWithGoogle } = useAuth();
+  const { user, loading: authLoading, login, register, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [showPassword, setShowPassword] = useState(false);
@@ -18,10 +18,21 @@ export default function Login() {
   });
 
   useEffect(() => {
-    if (user) {
-      navigate(user.isAdmin ? '/admin' : '/');
+    if (!authLoading && user) {
+      navigate(user.isAdmin ? '/admin' : '/', { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, authLoading, navigate]);
+
+  if (authLoading || user) {
+    return (
+      <div className="min-h-screen bg-mcn-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-mcn-blue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-mcn-gray-500 font-bold">Verifying session...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -238,11 +249,9 @@ export default function Login() {
             Google
           </button>
 
-          {mode === 'login' && (
-            <p className="text-xs text-mcn-gray-400 text-center mt-4">
-              Admin access: admin@musiccraftnepal.com
-            </p>
-          )}
+          <p className="text-xs text-mcn-gray-400 text-center mt-4">
+            Welcome to Music Craft Nepal
+          </p>
         </div>
 
         <p className="text-center text-xs text-mcn-gray-400 mt-6">

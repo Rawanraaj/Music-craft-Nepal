@@ -21,25 +21,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const handleSession = async (session: any) => {
     if (session?.user) {
+      const email = (session.user.email || '').toLowerCase().trim();
+      const isAdminByEmail = email === 'admin@musiccraftnepal.com';
+
       try {
         const { data: profile } = await supabase
           .from('profiles')
           .select('is_admin, name')
           .eq('id', session.user.id)
-          .single();
+          .maybeSingle();
 
         setUser({
           id: session.user.id,
           email: session.user.email || '',
           name: profile?.name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
-          isAdmin: profile?.is_admin || false,
+          isAdmin: profile?.is_admin || isAdminByEmail || false,
         });
       } catch {
         setUser({
           id: session.user.id,
           email: session.user.email || '',
           name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
-          isAdmin: false,
+          isAdmin: isAdminByEmail,
         });
       }
     } else {
@@ -49,11 +52,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      handleSession(session);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        handleSession(session);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       handleSession(session);
     });
 

@@ -11,7 +11,7 @@ import { Link } from 'react-router-dom';
 const STATUS_STEPS = ['Placed', 'Confirmed', 'Shipped', 'Out for Delivery', 'Delivered'];
 
 export default function MyOrders() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { t } = useLanguage();
   const { showToast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -37,8 +37,10 @@ export default function MyOrders() {
   };
 
   useEffect(() => {
-    loadOrders();
-  }, [user]);
+    if (!authLoading) {
+      loadOrders();
+    }
+  }, [user, authLoading]);
 
   const handleCancelOrder = async (orderId: string) => {
     setCancelConfirmId(orderId);
@@ -66,6 +68,14 @@ export default function MyOrders() {
     const oneHour = 60 * 60 * 1000;
     return (now - placedTime) < oneHour;
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-mcn-gray-50 flex items-center justify-center pt-24">
+        <div className="w-12 h-12 border-4 border-mcn-blue border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
