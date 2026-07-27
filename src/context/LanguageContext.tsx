@@ -263,24 +263,23 @@ const translations: Record<Language, Record<string, string>> = {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguageState] = useState<Language>(() => {
-    return (localStorage.getItem('mcn-lang') as Language) || 'en';
-  });
+  const [languageState, setLanguageState] = useState<Language>('en');
 
-  const setLanguage = (lang: Language) => {
-    setLanguageState(lang);
-    localStorage.setItem('mcn-lang', lang);
+  const setLanguage = (_lang: Language) => {
+    setLanguageState('en');
   };
 
+  const language: Language = 'en';
+
   const t = (key: string): string => {
-    return translations[language]?.[key] || translations['en']?.[key] || key;
+    return translations['en']?.[key] || key;
   };
 
   const tCms = (value: BilingualString | undefined, fallback: string = ''): string => {
     if (!value) return fallback;
     if (typeof value === 'string') return value;
     if (typeof value === 'object') {
-      return value[language] || value['en'] || fallback;
+      return value['en'] || value['ne'] || fallback;
     }
     return fallback;
   };

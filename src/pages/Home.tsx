@@ -62,7 +62,7 @@ const SERVICE_ICONS = [
 import { useLanguage } from '../context/LanguageContext';
 
 export default function Home() {
-  const { tCms, language } = useLanguage();
+  const { tCms } = useLanguage();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -280,21 +280,21 @@ export default function Home() {
                         <div className="text-center md:text-left">
                           {(banner.badge_en || banner.badge_ne) && (
                             <span className="inline-block bg-mcn-dark text-mcn-mint text-xs font-bold px-3 py-1 rounded-full mb-3">
-                              {language === 'ne' ? (banner.badge_ne || banner.badge_en) : banner.badge_en}
+                              {banner.badge_en || banner.badge_ne}
                             </span>
                           )}
                           <h2 className="text-2xl md:text-4xl font-extrabold text-mcn-dark mb-2">
-                            {language === 'ne' ? (banner.headline_ne || banner.headline_en) : banner.headline_en}
+                            {banner.headline_en || banner.headline_ne}
                           </h2>
                           <p className="text-mcn-dark/80 text-base md:text-lg mb-6 max-w-md">
-                            {language === 'ne' ? (banner.subcopy_ne || banner.subcopy_en) : banner.subcopy_en}
+                            {banner.subcopy_en || banner.subcopy_ne}
                           </p>
                           {banner.button_link && (
                             <Link
                               to={banner.button_link}
                               className="inline-flex items-center gap-2 px-6 py-3 bg-mcn-dark text-white font-bold rounded-lg hover:bg-mcn-charcoal transition-colors"
                             >
-                              {language === 'ne' ? (banner.button_text_ne || banner.button_text_en) : banner.button_text_en}
+                              {banner.button_text_en || banner.button_text_ne}
                               <ArrowRight className="w-5 h-5" />
                             </Link>
                           )}

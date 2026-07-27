@@ -42,7 +42,7 @@ const MEGA_MENU_CATEGORIES = [
 export default function Header() {
   const { totalItems, setIsOpen } = useCart();
   const { user, logout } = useAuth();
-  const { language, setLanguage, t } = useLanguage();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -95,7 +95,7 @@ export default function Header() {
             <Phone className="w-3.5 h-3.5" />
             <span>01-4123456</span>
             <span className="text-mcn-gray-400 mx-2">|</span>
-            <span>{language === 'ne' ? 'रु. ५,००० भन्दा बढीको अर्डरमा नि:शुल्क ढुवानी' : 'Free shipping on orders over Rs. 5,000'}</span>
+            <span>Free shipping on orders over Rs. 5,000</span>
           </p>
           <div className="flex items-center gap-4">
             <Link to="/about" className="hover:text-mcn-mint transition-colors">{t('about')}</Link>
@@ -140,7 +140,7 @@ export default function Header() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={language === 'ne' ? 'बाजाहरू, एसेसरिजहरू र थप खोज्नुहोस्...' : 'Search for instruments, accessories, and more...'}
+                  placeholder="Search for instruments, accessories, and more..."
                   className="w-full h-11 pl-4 pr-12 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm text-mcn-charcoal placeholder-mcn-gray-400 transition-colors"
                 />
                 <button
@@ -161,32 +161,10 @@ export default function Header() {
               >
                 <Phone className="w-5 h-5" />
                 <div className="text-left leading-tight">
-                  <span className="block text-xs text-mcn-gray-500">{language === 'ne' ? 'सम्पर्क' : 'Call us'}</span>
+                  <span className="block text-xs text-mcn-gray-500">Call us</span>
                   <span className="block text-sm font-semibold">01-4123456</span>
                 </div>
               </a>
-
-              {/* Language Switcher */}
-              <div className="flex items-center gap-1 bg-mcn-gray-100 p-1 rounded-lg text-xs">
-                <button
-                  type="button"
-                  onClick={() => setLanguage('en')}
-                  className={`px-2 py-1 rounded font-bold transition-all ${
-                    language === 'en' ? 'bg-white text-mcn-blue shadow-sm' : 'text-mcn-gray-500 hover:text-mcn-charcoal'
-                  }`}
-                >
-                  EN
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLanguage('ne')}
-                  className={`px-2 py-1 rounded font-bold transition-all ${
-                    language === 'ne' ? 'bg-white text-mcn-blue shadow-sm' : 'text-mcn-gray-500 hover:text-mcn-charcoal'
-                  }`}
-                >
-                  ने
-                </button>
-              </div>
 
               {/* Account Dropdown */}
               <div className="relative">
@@ -289,7 +267,7 @@ export default function Header() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={language === 'ne' ? 'बाजाहरू खोज्नुहोस्...' : 'Search instruments...'}
+                placeholder="Search instruments..."
                 className="w-full h-10 pl-4 pr-10 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
               />
               <button type="submit" className="absolute right-1 top-1 h-8 w-8 flex items-center justify-center rounded-md bg-mcn-blue">
@@ -313,7 +291,7 @@ export default function Header() {
                   onClick={() => setMegaMenuOpen(!megaMenuOpen)}
                   className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-white bg-mcn-blue hover:bg-mcn-blue-dark rounded-md transition-colors whitespace-nowrap"
                 >
-                  {language === 'ne' ? 'विधा अनुसार खरिद गर्नुहोस्' : 'Shop By Category'}
+                  Shop By Category
                   <ChevronDown className={`w-4 h-4 transition-transform ${megaMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
 
@@ -335,17 +313,17 @@ export default function Header() {
                             <p className="text-sm font-bold text-mcn-charcoal group-hover:text-mcn-blue transition-colors">
                               {t(cat.label)}
                             </p>
-                            <p className="text-xs text-mcn-gray-500">{language === 'ne' ? cat.descNe : cat.desc}</p>
+                            <p className="text-xs text-mcn-gray-500">{cat.desc}</p>
                           </div>
                         </Link>
                       ))}
                     </div>
                     <div className="mt-3 pt-3 border-t border-mcn-gray-100 flex items-center justify-between px-3">
                       <Link to="/shop" onClick={() => setMegaMenuOpen(false)} className="text-sm font-bold text-mcn-blue hover:underline">
-                        {language === 'ne' ? 'सबै बाजाहरू हेर्नुहोस्' : 'Browse all instruments'}
+                        Browse all instruments
                       </Link>
                       <Link to="/shop?deals=true" onClick={() => setMegaMenuOpen(false)} className="text-sm font-bold text-mcn-red hover:underline">
-                        {language === 'ne' ? 'अफरहरू हेर्नुहोस्' : 'Shop deals'}
+                        Shop deals
                       </Link>
                     </div>
                   </div>
@@ -388,7 +366,7 @@ export default function Header() {
           />
           <div className="absolute left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white shadow-xl animate-slide-in-right overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b border-mcn-gray-200 sticky top-0 bg-white z-10">
-              <span className="text-lg font-extrabold text-mcn-charcoal">{language === 'ne' ? 'मेनु' : 'Menu'}</span>
+              <span className="text-lg font-extrabold text-mcn-charcoal">Menu</span>
               <button onClick={() => setMobileMenuOpen(false)} aria-label="Close menu">
                 <X className="w-6 h-6 text-mcn-charcoal" />
               </button>
