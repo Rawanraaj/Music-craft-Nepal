@@ -148,7 +148,13 @@ export default function Home() {
     );
   }
 
-  const newInstruments = products.filter((p) => p.badge === 'new' || p.badge === 'trending').slice(0, 6);
+  const badgedNew = products.filter((p) => p.badge === 'new' || p.badge === 'trending');
+  let newInstruments = badgedNew.slice(0, 6);
+  if (newInstruments.length < 6) {
+    const existingIds = new Set(newInstruments.map((p) => p.id));
+    const fallbackProducts = products.filter((p) => !existingIds.has(p.id)).slice(0, 6 - newInstruments.length);
+    newInstruments = [...newInstruments, ...fallbackProducts];
+  }
   const trendingProducts = products.slice(0, 10);
 
   return (
