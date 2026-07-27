@@ -63,7 +63,7 @@ export default function Shop() {
     return Array.from(new Set(list));
   }, [products]);
 
-  const filteredProducts = useMemo(() => {
+  const filterResult = useMemo(() => {
     let result = [...products];
 
     // Search query
@@ -100,9 +100,17 @@ export default function Shop() {
       result = result.filter((p) => p.inStock);
     }
 
-    // Deals filter
+    // Deals filter — with fallback to popular products if too few deals
+    let dealsHadFallback = false;
     if (dealsParam) {
-      result = result.filter((p) => p.originalPrice && p.originalPrice > p.price);
+      const onSale = result.filter((p) => p.originalPrice && p.originalPrice > p.price);
+      if (onSale.length >= 4) {
+        result = onSale;
+      } else {
+        // Not enough sale items — show all products sorted by popularity as fallback
+        dealsHadFallback = true;
+        result.sort((a, b) => b.rating - a.rating || b.price - a.price);
+      }
     }
 
     // Sort
@@ -121,8 +129,11 @@ export default function Shop() {
         break;
     }
 
-    return result;
+    return { items: result, dealsHadFallback };
   }, [products, queryParam, selectedCategories, minPrice, maxPrice, selectedArtisans, inStockOnly, dealsParam, sortParam]);
+
+  const filteredProducts = filterResult.items;
+  const dealsHadFallback = filterResult.dealsHadFallback;
 
   const updateSort = (sort: string) => {
     const params = new URLSearchParams(searchParams);
@@ -160,7 +171,9 @@ export default function Shop() {
     inStockOnly;
 
   const heading = dealsParam
-    ? 'Deals & Offers'
+    ? dealsHadFallback
+      ? 'Popular & Recommended'
+      : 'Deals & Offers'
     : queryParam
     ? `Search: "${queryParam}"`
     : 'All Instruments';
@@ -290,7 +303,9 @@ export default function Shop() {
           <div>
             <h1 className="text-2xl md:text-3xl font-extrabold text-mcn-charcoal">{heading}</h1>
             <p className="text-sm text-mcn-gray-500 mt-1">
-              {filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'} found
+              {dealsHadFallback
+                ? 'No active deals right now — here are our top picks for you.'
+                : `${filteredProducts.length} ${filteredProducts.length === 1 ? 'product' : 'products'} found`}
             </p>
           </div>
 

@@ -3,33 +3,35 @@ import { Link } from 'react-router-dom';
 import { Music, Mail, Phone, MapPin, Facebook, Instagram, Youtube, Twitter } from 'lucide-react';
 import { fetchSiteContent } from '../lib/api';
 
-const FOOTER_LINKS = {
-  Shop: [
-    { label: 'Guitars', path: '/shop?category=Guitars' },
-    { label: 'Traditional Instruments', path: '/shop?category=Traditional+Instruments' },
-    { label: 'Percussion', path: '/shop?category=Percussion' },
-    { label: 'String Instruments', path: '/shop?category=String+Instruments' },
-    { label: 'Wind Instruments', path: '/shop?category=Wind+Instruments' },
-    { label: 'Accessories', path: '/shop?category=Accessories' },
-  ],
-  Company: [
-    { label: 'Our Story', path: '/about' },
-    { label: 'Wholesale Inquiry', path: '/wholesale' },
-    { label: 'Contact Us', path: '/contact' },
-    { label: 'Deals', path: '/shop?deals=true' },
-  ],
-  Support: [
-    { label: 'My Account', path: '/login' },
-    { label: 'Track Order', path: '/login' },
-    { label: 'Shipping Info', path: '/contact' },
-    { label: 'Returns & Refunds', path: '/contact' },
-  ],
-};
-
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function Footer() {
   const { t, tCms } = useLanguage();
+  const { user } = useAuth();
+
+  const footerLinkSections = {
+    Shop: [
+      { label: 'Guitars', path: '/shop?category=Guitars' },
+      { label: 'Traditional Instruments', path: '/shop?category=Traditional+Instruments' },
+      { label: 'Percussion', path: '/shop?category=Percussion' },
+      { label: 'String Instruments', path: '/shop?category=String+Instruments' },
+      { label: 'Wind Instruments', path: '/shop?category=Wind+Instruments' },
+      { label: 'Accessories', path: '/shop?category=Accessories' },
+    ],
+    Company: [
+      { label: 'Our Story', path: '/about' },
+      { label: 'Wholesale Inquiry', path: '/wholesale' },
+      { label: 'Contact Us', path: '/contact' },
+      { label: 'Deals', path: '/shop?deals=true' },
+    ],
+    Support: [
+      { label: 'My Account', path: user ? '/my-orders' : '/login' },
+      { label: 'Track Order', path: '/my-orders' },
+      { label: 'Shipping Info', path: '/shipping-info' },
+      { label: 'Returns & Refunds', path: '/returns-refunds' },
+    ],
+  };
   const [content, setContent] = useState<any>({
     aboutText: 'Handcrafted Nepali musical instruments made by master artisans. Delivering the sound of the Himalayas nationwide.',
     facebookUrl: '#',
@@ -124,7 +126,7 @@ export default function Footer() {
           </div>
 
           {/* Link columns */}
-          {Object.entries(FOOTER_LINKS).map(([heading, links]) => (
+          {Object.entries(footerLinkSections).map(([heading, links]) => (
             <div key={heading}>
               <h4 className="text-sm font-bold uppercase tracking-wider mb-4">{heading}</h4>
               <ul className="space-y-2.5">

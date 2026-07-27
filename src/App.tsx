@@ -18,6 +18,8 @@ import Admin from './pages/Admin';
 import Articles from './pages/Articles';
 import ArticleDetail from './pages/ArticleDetail';
 import MyOrders from './pages/MyOrders';
+import ShippingInfo from './pages/ShippingInfo';
+import ReturnsRefunds from './pages/ReturnsRefunds';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -55,6 +57,8 @@ function AppRoutes() {
         <Route path="/articles" element={<Articles />} />
         <Route path="/articles/:slug" element={<ArticleDetail />} />
         <Route path="/my-orders" element={<MyOrders />} />
+        <Route path="/shipping-info" element={<ShippingInfo />} />
+        <Route path="/returns-refunds" element={<ReturnsRefunds />} />
       </Routes>
     </Layout>
   );
