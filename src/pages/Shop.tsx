@@ -72,14 +72,16 @@ export default function Shop() {
       result = result.filter(
         (p) =>
           p.name.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q) ||
+          (p.categories && p.categories.some((c) => c.toLowerCase().includes(q))) ||
           p.description.toLowerCase().includes(q)
       );
     }
 
     // Category filter (checkbox multi-selection)
     if (selectedCategories.length > 0) {
-      result = result.filter((p) => selectedCategories.includes(p.category));
+      result = result.filter(
+        (p) => p.categories && p.categories.some((cat) => selectedCategories.includes(cat))
+      );
     }
 
     // Price range filters

@@ -122,8 +122,13 @@ export default function ProductDetail() {
 
           fetchProducts()
             .then((all) => {
+              const dataCats = data.categories || [];
               const related = all
-                .filter((p) => p.category === data.category && p.id !== data.id)
+                .filter((p) => {
+                  if (p.id === data.id) return false;
+                  const pCats = p.categories || [];
+                  return pCats.some((c) => dataCats.includes(c));
+                })
                 .slice(0, 4);
               setRelatedProducts(related);
             })
@@ -165,8 +170,8 @@ export default function ProductDetail() {
           <p className="text-xs text-mcn-gray-500 flex items-center gap-1 flex-wrap">
             <Link to="/" className="hover:text-mcn-blue transition-colors">Home</Link>
             <ChevronRight className="w-3 h-3" />
-            <Link to={`/shop?category=${encodeURIComponent(product.category)}`} className="hover:text-mcn-blue transition-colors">
-              {product.category}
+            <Link to={`/shop?category=${encodeURIComponent((product.categories || [])[0] || '')}`} className="hover:text-mcn-blue transition-colors">
+              {(product.categories || []).join(' · ')}
             </Link>
             <ChevronRight className="w-3 h-3" />
             <span className="text-mcn-charcoal font-semibold">{product.name}</span>
@@ -205,7 +210,7 @@ export default function ProductDetail() {
           {/* Info */}
           <div>
             <p className="text-sm font-bold text-mcn-blue uppercase tracking-wide mb-2">
-              {product.category}
+              {(product.categories || []).join(' · ')}
             </p>
             <h1 className="text-2xl md:text-3xl font-extrabold text-mcn-charcoal mb-3 leading-tight">
               {product.name}

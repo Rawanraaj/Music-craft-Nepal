@@ -48,8 +48,8 @@ export default function ProductCard({ product }: { product: Product }) {
 
       {/* Content */}
       <div className="p-4">
-        <p className="text-xs font-semibold text-mcn-blue uppercase tracking-wide mb-1">
-          {product.category}
+        <p className="text-xs font-semibold text-mcn-blue uppercase tracking-wide mb-1 line-clamp-1">
+          {(product.categories || []).join(' · ')}
         </p>
         <Link to={`/product/${product.slug}`}>
           <h3 className="text-sm font-bold text-mcn-charcoal leading-snug mb-2 line-clamp-2 group-hover:text-mcn-blue transition-colors">

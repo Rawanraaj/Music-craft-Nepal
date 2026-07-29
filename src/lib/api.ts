@@ -4,11 +4,36 @@ import type { Product, Order, WholesaleInquiry, Review, Article, PromoBanner } f
 // Helper to map DB Product to Frontend Product
 export function mapDbProduct(p: any): Product {
   if (!p) throw new Error('Invalid product data');
+
+  let categoriesList: string[] = [];
+  if (Array.isArray(p.categories)) {
+    categoriesList = p.categories.filter((c: any) => typeof c === 'string' && c.trim().length > 0);
+  } else if (typeof p.categories === 'string' && p.categories.trim().length > 0) {
+    const raw = p.categories.trim();
+    if (raw.startsWith('{') && raw.endsWith('}')) {
+      categoriesList = raw.slice(1, -1).split(',').map(s => s.trim().replace(/^"|"$/g, '')).filter(Boolean);
+    } else if (raw.startsWith('[') && raw.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) categoriesList = parsed;
+      } catch (e) {
+        categoriesList = [raw];
+      }
+    } else {
+      categoriesList = raw.split(',').map(s => s.trim()).filter(Boolean);
+    }
+  }
+
+  if (categoriesList.length === 0 && p.category) {
+    categoriesList = [p.category];
+  }
+
   return {
     id: p.id,
     name: p.name,
     slug: p.slug,
-    category: p.category,
+    category: categoriesList[0] || p.category || '',
+    categories: categoriesList,
     subcategory: p.subcategory || undefined,
     price: Number(p.price),
     originalPrice: p.original_price ? Number(p.original_price) : undefined,
@@ -103,12 +128,16 @@ export async function fetchProductBySlug(slug: string): Promise<Product | null> 
 }
 
 export async function createProduct(product: Omit<Product, 'id' | 'rating' | 'reviewCount'>): Promise<Product> {
+  const categories = product.categories && product.categories.length > 0 ? product.categories : [product.category];
+  const primaryCategory = categories[0] || product.category || 'Guitars';
+
   const { data, error } = await supabase
     .from('products')
     .insert([{
       name: product.name,
       slug: product.slug,
-      category: product.category,
+      category: primaryCategory,
+      categories: categories,
       subcategory: product.subcategory || null,
       price: product.price,
       original_price: product.originalPrice || null,
@@ -135,7 +164,14 @@ export async function updateProduct(id: string, product: Partial<Product>): Prom
   const updates: any = {};
   if (product.name !== undefined) updates.name = product.name;
   if (product.slug !== undefined) updates.slug = product.slug;
-  if (product.category !== undefined) updates.category = product.category;
+  if (product.categories !== undefined) {
+    updates.categories = product.categories;
+    if (product.categories.length > 0) {
+      updates.category = product.categories[0];
+    }
+  } else if (product.category !== undefined) {
+    updates.category = product.category;
+  }
   if (product.subcategory !== undefined) updates.subcategory = product.subcategory || null;
   if (product.price !== undefined) updates.price = product.price;
   if (product.originalPrice !== undefined) updates.original_price = product.originalPrice || null;

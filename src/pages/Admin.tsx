@@ -114,6 +114,7 @@ export default function Admin() {
     name: '',
     slug: '',
     category: 'Guitars',
+    categories: ['Guitars'] as string[],
     subcategory: '',
     price: 0,
     originalPrice: 0,
@@ -751,6 +752,7 @@ export default function Admin() {
       name: '',
       slug: '',
       category: 'Guitars',
+      categories: ['Guitars'],
       subcategory: '',
       price: 0,
       originalPrice: 0,
@@ -770,10 +772,12 @@ export default function Admin() {
 
   const handleOpenEditForm = (prod: Product) => {
     setEditingProduct(prod);
+    const cats = prod.categories && prod.categories.length > 0 ? [...prod.categories] : [prod.category];
     setFormFields({
       name: prod.name,
       slug: prod.slug,
-      category: prod.category,
+      category: cats[0] || prod.category,
+      categories: cats,
       subcategory: prod.subcategory || '',
       price: prod.price,
       originalPrice: prod.originalPrice || 0,
@@ -864,8 +868,15 @@ export default function Admin() {
       return;
     }
 
+    if (!formFields.categories || formFields.categories.length === 0) {
+      showToast('Please select at least one category.', 'error');
+      return;
+    }
+
     const cleanedFields = {
       ...formFields,
+      category: formFields.categories[0],
+      categories: formFields.categories,
       price: Number(formFields.price),
       originalPrice: formFields.originalPrice ? Number(formFields.originalPrice) : undefined,
       stock_quantity: Number(formFields.stock_quantity),
@@ -1230,7 +1241,9 @@ export default function Admin() {
                                 <span className="text-sm font-bold text-mcn-charcoal line-clamp-1">{product.name}</span>
                               </div>
                             </td>
-                            <td className="px-5 py-3 text-sm text-mcn-gray-600 hidden md:table-cell">{product.category}</td>
+                            <td className="px-5 py-3 text-sm text-mcn-gray-600 hidden md:table-cell">
+                              {(product.categories || []).join(', ')}
+                            </td>
                             <td className="px-5 py-3 text-sm font-bold text-mcn-charcoal">Rs. {product.price.toLocaleString()}</td>
                             <td className="px-5 py-3 hidden lg:table-cell">
                               <div className="flex flex-col">
@@ -1981,16 +1994,35 @@ export default function Admin() {
 
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-mcn-charcoal mb-1">Category *</label>
-                      <select
-                        value={formFields.category}
-                        onChange={(e) => setFormFields((prev) => ({ ...prev, category: e.target.value }))}
-                        className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm bg-white"
-                      >
-                        {CATEGORIES.filter((c) => c !== 'Wholesale' && c !== 'Deals').map((cat) => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                      </select>
+                      <label className="block text-xs font-bold text-mcn-charcoal mb-2">Categories * (Select at least one)</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 border-2 border-mcn-gray-300 rounded-lg bg-white max-h-48 overflow-y-auto">
+                        {CATEGORIES.filter((c) => c !== 'Wholesale' && c !== 'Deals').map((cat) => {
+                          const isChecked = formFields.categories.includes(cat);
+                          return (
+                            <label key={cat} className="flex items-center gap-2 text-xs font-medium text-mcn-charcoal cursor-pointer hover:text-mcn-blue">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  let newCats: string[];
+                                  if (e.target.checked) {
+                                    newCats = [...formFields.categories, cat];
+                                  } else {
+                                    newCats = formFields.categories.filter((c) => c !== cat);
+                                  }
+                                  setFormFields((prev) => ({
+                                    ...prev,
+                                    categories: newCats,
+                                    category: newCats[0] || '',
+                                  }));
+                                }}
+                                className="w-4 h-4 text-mcn-blue rounded border-mcn-gray-300 focus:ring-mcn-blue"
+                              />
+                              <span>{cat}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-mcn-charcoal mb-1">Subcategory (Optional)</label>
