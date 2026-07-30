@@ -53,7 +53,7 @@ export default function Cart() {
                   <div className="flex justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-mcn-blue uppercase tracking-wide mb-1">
-                        {item.product.category}
+                        {(item.product.categories && item.product.categories.length > 0 ? item.product.categories : [item.product.category]).join(' · ')}
                       </p>
                       <Link
                         to={`/product/${item.product.slug}`}

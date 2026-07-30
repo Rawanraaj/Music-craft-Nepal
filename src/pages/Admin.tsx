@@ -365,7 +365,7 @@ export default function Admin() {
       p.id,
       p.name,
       p.slug,
-      p.category,
+      (p.categories || []).join('; '),
       p.price,
       p.originalPrice || '',
       p.stock_quantity,
