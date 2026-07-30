@@ -321,7 +321,7 @@ export default function Admin() {
   const totalRevenue = orders
     .filter((o) => o.status !== 'Cancelled')
     .reduce((sum, o) => sum + o.total, 0);
-  const pendingOrders = orders.filter((o) => o.status === 'Placed' || o.status === 'Confirmed' || o.status === 'Shipped').length;
+  const pendingOrders = orders.filter((o) => o.status === 'Placed' || o.status === 'Confirmed' || o.status === 'Shipped' || o.status === 'Out for Delivery').length;
   const newInquiries = inquiries.filter((i) => i.status === 'new').length;
 
   // Analytics Calculations
@@ -345,8 +345,13 @@ export default function Admin() {
       .forEach((o) => {
         o.items.forEach((item) => {
           if (item.product) {
-            const cat = item.product.category || 'Other';
-            sales[cat] = (sales[cat] || 0) + item.quantity;
+            const cats = (item.product.categories && item.product.categories.length > 0)
+              ? item.product.categories
+              : (item.product.category ? [item.product.category] : ['Other']);
+
+            cats.forEach((cat) => {
+              sales[cat] = (sales[cat] || 0) + item.quantity;
+            });
           }
         });
       });
