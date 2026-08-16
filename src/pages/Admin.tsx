@@ -22,6 +22,9 @@ import {
   Download,
   FileText,
   Plus,
+  MessageSquare,
+  Send,
+  CheckCheck,
 } from 'lucide-react';
 import {
   BarChart,
@@ -62,12 +65,17 @@ import {
   updatePromoBanner,
   deletePromoBanner,
   uploadBannerImage,
+  fetchAdminConversations,
+  fetchConversationMessages,
+  sendMessage as apiSendMessage,
+  markMessagesAsRead,
+  fetchUnreadMessageCount,
 } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { CATEGORIES } from '../types';
-import type { Product, Order, WholesaleInquiry, Article, PromoBanner } from '../types';
+import type { Product, Order, WholesaleInquiry, Article, PromoBanner, Conversation, Message } from '../types';
 
-type AdminTab = 'overview' | 'products' | 'orders' | 'inquiries' | 'coupons' | 'articles' | 'settings';
+type AdminTab = 'overview' | 'products' | 'orders' | 'inquiries' | 'messages' | 'coupons' | 'articles' | 'settings';
 
 const STATUS_COLORS: Record<string, string> = {
   // Orders
@@ -193,6 +201,102 @@ export default function Admin() {
     enabled: true,
     display_order: 0,
   });
+
+  // Admin Messages States
+  const [adminConversations, setAdminConversations] = useState<Conversation[]>([]);
+  const [adminActiveConv, setAdminActiveConv] = useState<Conversation | null>(null);
+  const [adminMessages, setAdminMessages] = useState<Message[]>([]);
+  const [adminNewMessage, setAdminNewMessage] = useState('');
+  const [adminUnreadCount, setAdminUnreadCount] = useState(0);
+  const [adminSending, setAdminSending] = useState(false);
+
+  const loadAdminConversations = async (selectId?: string) => {
+    try {
+      const convs = await fetchAdminConversations();
+      setAdminConversations(convs);
+      const totalUnread = convs.reduce((sum, c) => sum + (c.unread_count || 0), 0);
+      setAdminUnreadCount(totalUnread);
+
+      if (convs.length > 0) {
+        const targetId = selectId || adminActiveConv?.id || convs[0].id;
+        const found = convs.find((c) => c.id === targetId) || convs[0];
+        setAdminActiveConv(found);
+      }
+    } catch (err) {
+      console.error('Error loading admin conversations:', err);
+    }
+  };
+
+  const loadAdminThreadMessages = async (convId: string) => {
+    try {
+      const msgs = await fetchConversationMessages(convId);
+      setAdminMessages(msgs);
+      await markMessagesAsRead(convId, 'admin');
+      setAdminConversations((prev) =>
+        prev.map((c) => (c.id === convId ? { ...c, unread_count: 0 } : c))
+      );
+    } catch (err) {
+      console.error('Error loading thread messages:', err);
+    }
+  };
+
+  const handleAdminSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminNewMessage.trim() || !adminActiveConv || !user || adminSending) return;
+
+    const bodyText = adminNewMessage.trim();
+    setAdminNewMessage('');
+    setAdminSending(true);
+
+    try {
+      await apiSendMessage({
+        conversationId: adminActiveConv.id,
+        senderId: user.id,
+        senderType: 'admin',
+        body: bodyText,
+      });
+
+      loadAdminConversations(adminActiveConv.id);
+    } catch (err: any) {
+      showToast('Failed to send reply.', 'error');
+      setAdminNewMessage(bodyText);
+    } finally {
+      setAdminSending(false);
+    }
+  };
+
+  useEffect(() => {
+    if (adminActiveConv) {
+      loadAdminThreadMessages(adminActiveConv.id);
+    }
+  }, [adminActiveConv?.id]);
+
+  useEffect(() => {
+    if (!user || !user.isAdmin) return;
+    loadAdminConversations();
+
+    const channel = supabase
+      .channel('admin:messages')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload) => {
+          const newMsg = payload.new as Message;
+          if (adminActiveConv && newMsg.conversation_id === adminActiveConv.id) {
+            setAdminMessages((prev) => [...prev, newMsg]);
+            if (newMsg.sender_type === 'customer') {
+              markMessagesAsRead(adminActiveConv.id, 'admin');
+            }
+          }
+          loadAdminConversations(adminActiveConv?.id);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   const loadAllData = async () => {
     setLoadingData(true);
@@ -937,6 +1041,7 @@ export default function Admin() {
     { id: 'products' as AdminTab, label: 'Products', icon: Package },
     { id: 'orders' as AdminTab, label: 'Orders', icon: ShoppingCart },
     { id: 'inquiries' as AdminTab, label: 'Wholesale Inquiries', icon: Mail },
+    { id: 'messages' as AdminTab, label: 'Messages', icon: MessageSquare },
     { id: 'coupons' as AdminTab, label: 'Coupons', icon: Tag },
     { id: 'articles' as AdminTab, label: 'Articles', icon: FileText },
     { id: 'settings' as AdminTab, label: 'Settings', icon: Settings },
@@ -979,6 +1084,11 @@ export default function Admin() {
             {item.id === 'inquiries' && newInquiries > 0 && (
               <span className="ml-auto bg-mcn-mint text-mcn-dark text-xs font-bold px-2 py-0.5 rounded-full">
                 {newInquiries}
+              </span>
+            )}
+            {item.id === 'messages' && adminUnreadCount > 0 && (
+              <span className="ml-auto bg-mcn-red text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                {adminUnreadCount}
               </span>
             )}
           </button>
@@ -1338,11 +1448,174 @@ export default function Admin() {
                               <option value="Delivered">Delivered</option>
                               <option value="Cancelled">Cancelled</option>
                             </select>
+
+                            {order.status === 'Out for Delivery' && (order.delivery_confirmation_attempts || 0) >= 6 && !order.delivery_confirmed_by_customer && (
+                              <div className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2 py-1 rounded-lg">
+                                ⚠️ Awaiting delivery confirmation — no customer response
+                              </div>
+                            )}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            )}
+
+            {/* Messages Section */}
+            {activeTab === 'messages' && (
+              <div className="bg-white rounded-xl border border-mcn-gray-200 overflow-hidden grid md:grid-cols-3 min-h-[600px] h-[calc(100vh-160px)]">
+                {/* Conversation List Sidebar */}
+                <div className="border-r border-mcn-gray-200 flex flex-col h-full bg-mcn-gray-50/50">
+                  <div className="p-4 border-b border-mcn-gray-200 font-extrabold text-sm text-mcn-charcoal">
+                    Customer Support Inquiries ({adminConversations.length})
+                  </div>
+                  <div className="flex-1 overflow-y-auto divide-y divide-mcn-gray-100">
+                    {adminConversations.map((c) => {
+                      const isSelected = adminActiveConv?.id === c.id;
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => setAdminActiveConv(c)}
+                          className={`w-full text-left p-4 transition-colors flex items-start gap-3 relative ${
+                            isSelected ? 'bg-white border-l-4 border-mcn-blue shadow-sm' : 'hover:bg-white/60'
+                          }`}
+                        >
+                          <div className="w-10 h-10 rounded-full bg-mcn-blue/10 text-mcn-blue font-bold flex items-center justify-center shrink-0 text-sm">
+                            {(c.customer_name || 'C').charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-baseline mb-0.5">
+                              <p className="text-sm font-bold text-mcn-charcoal truncate">
+                                {c.customer_name || 'Customer'}
+                              </p>
+                              <span className="text-[10px] text-mcn-gray-400 font-semibold shrink-0 ml-2">
+                                {new Date(c.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <p className="text-xs text-mcn-gray-500 font-semibold truncate mb-1">
+                              {c.subject || 'Inquiry'}
+                            </p>
+                            {c.product && (
+                              <p className="text-[11px] text-mcn-blue font-semibold truncate">
+                                Product: {c.product.name}
+                              </p>
+                            )}
+                            {c.order_id && (
+                              <p className="text-[11px] text-emerald-700 font-semibold truncate">
+                                Order #{c.order_id}
+                              </p>
+                            )}
+                          </div>
+                          {c.unread_count && c.unread_count > 0 ? (
+                            <span className="bg-mcn-red text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0">
+                              {c.unread_count}
+                            </span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                    {adminConversations.length === 0 && (
+                      <div className="p-8 text-center text-sm text-mcn-gray-400 font-semibold">
+                        No customer messages yet.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Main Message Thread Panel */}
+                <div className="md:col-span-2 flex flex-col h-full bg-white">
+                  {adminActiveConv ? (
+                    <>
+                      {/* Thread Header */}
+                      <div className="p-4 border-b border-mcn-gray-200 bg-mcn-gray-50 flex justify-between items-center">
+                        <div>
+                          <h3 className="font-extrabold text-sm text-mcn-charcoal">
+                            {adminActiveConv.customer_name} ({adminActiveConv.customer_email})
+                          </h3>
+                          <p className="text-xs text-mcn-gray-500 mt-0.5">
+                            Subject: <span className="font-bold text-mcn-charcoal">{adminActiveConv.subject || 'General Inquiry'}</span>
+                          </p>
+                        </div>
+                        {adminActiveConv.product && (
+                          <div className="text-right">
+                            <p className="text-xs font-bold text-mcn-blue">Item: {adminActiveConv.product.name}</p>
+                            <p className="text-[10px] text-mcn-gray-400">Rs. {adminActiveConv.product.price.toLocaleString()}</p>
+                          </div>
+                        )}
+                        {adminActiveConv.order_id && (
+                          <div className="text-right">
+                            <p className="text-xs font-bold text-emerald-700">Order #{adminActiveConv.order_id}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Messages Feed */}
+                      <div className="flex-1 p-4 md:p-6 overflow-y-auto space-y-4 bg-mcn-gray-50/30">
+                        {adminMessages.map((m) => {
+                          const isAdmin = m.sender_type === 'admin';
+                          return (
+                            <div
+                              key={m.id}
+                              className={`flex flex-col ${isAdmin ? 'items-end' : 'items-start'}`}
+                            >
+                              <div
+                                className={`max-w-[80%] md:max-w-[70%] p-3.5 rounded-2xl text-sm leading-relaxed ${
+                                  isAdmin
+                                    ? 'bg-mcn-blue text-white rounded-br-none shadow-sm'
+                                    : 'bg-white border border-mcn-gray-200 text-mcn-charcoal rounded-bl-none shadow-sm'
+                                }`}
+                              >
+                                {!isAdmin && (
+                                  <p className="text-[10px] font-extrabold text-mcn-blue uppercase tracking-wider mb-1">
+                                    {adminActiveConv.customer_name}
+                                  </p>
+                                )}
+                                <p className="whitespace-pre-wrap">{m.body}</p>
+                                <div
+                                  className={`flex items-center justify-end gap-1 text-[10px] mt-1.5 ${
+                                    isAdmin ? 'text-blue-100' : 'text-mcn-gray-400'
+                                  }`}
+                                >
+                                  <span>
+                                    {new Date(m.created_at).toLocaleTimeString([], {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </span>
+                                  {isAdmin && <CheckCheck className="w-3 h-3" />}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Reply Textarea */}
+                      <form onSubmit={handleAdminSendMessage} className="p-4 border-t border-mcn-gray-200 flex gap-2 bg-white">
+                        <input
+                          type="text"
+                          value={adminNewMessage}
+                          onChange={(e) => setAdminNewMessage(e.target.value)}
+                          placeholder="Type your reply to customer..."
+                          className="flex-1 px-4 py-2.5 bg-mcn-gray-50 border border-mcn-gray-200 rounded-xl text-sm focus:outline-none focus:border-mcn-blue transition-colors"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!adminNewMessage.trim() || adminSending}
+                          className="px-5 py-2.5 bg-mcn-blue hover:bg-mcn-blue-dark text-white font-bold text-sm rounded-xl transition-all disabled:opacity-50 flex items-center gap-2 shrink-0 shadow-sm"
+                        >
+                          <Send className="w-4 h-4" />
+                          <span className="hidden sm:inline">Reply</span>
+                        </button>
+                      </form>
+                    </>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center text-mcn-gray-400 text-sm">
+                      Select a conversation thread to respond
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -3,10 +3,10 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { fetchUserOrders, cancelOrder } from '../lib/api';
+import { fetchUserOrders, cancelOrder, confirmOrderDelivery, startConversation } from '../lib/api';
 import type { Order } from '../types';
-import { ShoppingBag, ChevronRight, XCircle, Clock, Truck } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ShoppingBag, ChevronRight, XCircle, Clock, Truck, MessageSquare, CheckCircle2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 
 const STATUS_STEPS = ['Placed', 'Confirmed', 'Shipped', 'Out for Delivery', 'Delivered'];
 
@@ -14,10 +14,12 @@ export default function MyOrders() {
   const { user, loading: authLoading } = useAuth();
   const { t } = useLanguage();
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+  const [confirmDeliveryId, setConfirmDeliveryId] = useState<string | null>(null);
 
   const loadOrders = async () => {
     if (!user) {
@@ -56,6 +58,33 @@ export default function MyOrders() {
       showToast(err.message || 'Failed to cancel order', 'error');
     } finally {
       setCancelConfirmId(null);
+    }
+  };
+
+  const handleConfirmDelivery = async (orderId: string) => {
+    try {
+      await confirmOrderDelivery(orderId);
+      showToast('Thank you for confirming delivery! Order marked as Delivered.', 'success');
+      loadOrders();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to confirm delivery.', 'error');
+    } finally {
+      setConfirmDeliveryId(null);
+    }
+  };
+
+  const handleMessageSeller = async (order: Order) => {
+    if (!user) return;
+    try {
+      const conv = await startConversation({
+        customerId: user.id,
+        subject: `Order #${order.id}`,
+        orderId: order.id,
+        initialMessage: `Hi, I have a question regarding my order #${order.id}.`,
+      });
+      navigate(`/messages?conversationId=${conv.id}`);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to start conversation.', 'error');
     }
   };
 
@@ -155,7 +184,7 @@ export default function MyOrders() {
                       <p className="text-xs text-mcn-gray-500 uppercase tracking-wider font-extrabold">Total Amount</p>
                       <p className="text-base md:text-lg font-extrabold text-mcn-charcoal">Rs. {order.total.toLocaleString()}</p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 flex-wrap">
                       {order.status === 'Cancelled' ? (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-50 border border-red-200 text-mcn-red">
                           <XCircle className="w-3.5 h-3.5" /> Cancelled
@@ -166,10 +195,28 @@ export default function MyOrders() {
                         </span>
                       )}
 
+                      {order.status === 'Out for Delivery' && !order.delivery_confirmed_by_customer && (
+                        <button
+                          onClick={() => setConfirmDeliveryId(order.id)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Mark as Received
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => handleMessageSeller(order)}
+                        className="bg-white hover:bg-mcn-blue/5 text-mcn-blue border border-mcn-blue/30 font-bold text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        Message Seller
+                      </button>
+
                       {cancelAllowed && (
                         <button
                           onClick={() => handleCancelOrder(order.id)}
-                          className="bg-white hover:bg-red-50 text-mcn-red border border-red-300 font-bold text-xs px-3.5 py-1.5 rounded-lg transition-colors"
+                          className="bg-white hover:bg-red-50 text-mcn-red border border-red-300 font-bold text-xs px-3 py-1.5 rounded-lg transition-colors"
                         >
                           Cancel Order
                         </button>
@@ -297,6 +344,17 @@ export default function MyOrders() {
         type="danger"
         onConfirm={confirmCancel}
         onCancel={() => setCancelConfirmId(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmDeliveryId !== null}
+        title="Confirm Order Delivery"
+        message="Did you receive your order in good condition? Confirming will update the status to Delivered."
+        confirmText="Yes, I Received It"
+        cancelText="Not Yet"
+        type="info"
+        onConfirm={() => confirmDeliveryId && handleConfirmDelivery(confirmDeliveryId)}
+        onCancel={() => setConfirmDeliveryId(null)}
       />
     </div>
   );

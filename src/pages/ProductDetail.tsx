@@ -14,7 +14,7 @@ import {
   Share2,
   MessageSquare,
 } from 'lucide-react';
-import { fetchProductBySlug, fetchProducts, fetchReviews, createReview } from '../lib/api';
+import { fetchProductBySlug, fetchProducts, fetchReviews, createReview, startConversation } from '../lib/api';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -365,6 +365,34 @@ export default function ProductDetail() {
                 <Share2 className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Message Seller Button */}
+            <button
+              type="button"
+              onClick={async () => {
+                if (!user) {
+                  showToast('Please sign in to message the seller.', 'info');
+                  navigate('/login');
+                  return;
+                }
+                if (!product) return;
+                try {
+                  const conv = await startConversation({
+                    customerId: user.id,
+                    subject: `Inquiry: ${product.name}`,
+                    productId: product.id,
+                    initialMessage: `Hi, I have a question about ${product.name}.`,
+                  });
+                  navigate(`/messages?conversationId=${conv.id}`);
+                } catch (err: any) {
+                  showToast(err.message || 'Failed to start conversation.', 'error');
+                }
+              }}
+              className="w-full h-11 mb-6 flex items-center justify-center gap-2 border-2 border-mcn-blue text-mcn-blue hover:bg-mcn-blue hover:text-white font-bold rounded-lg transition-all shadow-sm"
+            >
+              <MessageSquare className="w-4 h-4" />
+              Message Seller
+            </button>
 
             {/* Service badges */}
             <div className="grid grid-cols-3 gap-3 pt-6 border-t border-mcn-gray-200">

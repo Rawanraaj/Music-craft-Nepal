@@ -18,6 +18,7 @@ import Admin from './pages/Admin';
 import Articles from './pages/Articles';
 import ArticleDetail from './pages/ArticleDetail';
 import MyOrders from './pages/MyOrders';
+import CustomerMessages from './pages/CustomerMessages';
 import ShippingInfo from './pages/ShippingInfo';
 import ReturnsRefunds from './pages/ReturnsRefunds';
 
@@ -57,6 +58,7 @@ function AppRoutes() {
         <Route path="/articles" element={<Articles />} />
         <Route path="/articles/:slug" element={<ArticleDetail />} />
         <Route path="/my-orders" element={<MyOrders />} />
+        <Route path="/messages" element={<CustomerMessages />} />
         <Route path="/shipping-info" element={<ShippingInfo />} />
         <Route path="/returns-refunds" element={<ReturnsRefunds />} />
       </Routes>

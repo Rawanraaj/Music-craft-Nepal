@@ -48,6 +48,35 @@ export interface Order {
   date: string;
   paymentMethod: string;
   coupon_code?: string;
+  out_for_delivery_at?: string;
+  delivery_confirmation_attempts?: number;
+  delivery_confirmed_by_customer?: boolean;
+  last_delivery_checkin_at?: string;
+}
+
+export interface Conversation {
+  id: string;
+  customer_id: string;
+  subject?: string;
+  product_id?: string;
+  order_id?: string;
+  status: 'open' | 'closed';
+  created_at: string;
+  last_message_at: string;
+  customer_name?: string;
+  customer_email?: string;
+  unread_count?: number;
+  product?: Product;
+}
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  sender_id?: string;
+  sender_type: 'customer' | 'admin';
+  body: string;
+  read: boolean;
+  created_at: string;
 }
 
 export interface WholesaleInquiry {

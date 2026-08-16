@@ -72,6 +72,10 @@ export function mapDbOrder(o: any): Order {
       selectedVariant: item.variant || undefined,
     })),
     coupon_code: o.coupon_code || undefined,
+    out_for_delivery_at: o.out_for_delivery_at || undefined,
+    delivery_confirmation_attempts: o.delivery_confirmation_attempts || 0,
+    delivery_confirmed_by_customer: !!o.delivery_confirmed_by_customer,
+    last_delivery_checkin_at: o.last_delivery_checkin_at || undefined,
   };
 }
 
@@ -290,9 +294,27 @@ export async function createOrder(order: Omit<Order, 'id' | 'date'>): Promise<Or
 }
 
 export async function updateOrderStatus(id: string, status: Order['status']): Promise<void> {
+  const updates: any = { status };
+  if (status === 'Out for Delivery') {
+    updates.out_for_delivery_at = new Date().toISOString();
+    updates.delivery_confirmation_attempts = 0;
+    updates.delivery_confirmed_by_customer = false;
+  }
   const { error } = await supabase
     .from('orders')
-    .update({ status })
+    .update(updates)
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
+export async function confirmOrderDelivery(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('orders')
+    .update({
+      status: 'Delivered',
+      delivery_confirmed_by_customer: true,
+    })
     .eq('id', id);
 
   if (error) throw error;
@@ -749,6 +771,252 @@ export async function uploadBannerImage(file: File): Promise<string> {
     .getPublicUrl(filePath);
 
   return data.publicUrl;
+}
+
+// MESSAGING API
+export async function fetchCustomerConversations(customerId: string): Promise<Conversation[]> {
+  const { data: convs, error } = await supabase
+    .from('conversations')
+    .select('*, products(*)')
+    .eq('customer_id', customerId)
+    .order('last_message_at', { ascending: false });
+
+  if (error) throw error;
+
+  const result: Conversation[] = [];
+  for (const c of convs || []) {
+    // Count unread admin messages
+    const { count } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('conversation_id', c.id)
+      .eq('sender_type', 'admin')
+      .eq('read', false);
+
+    result.push({
+      id: c.id,
+      customer_id: c.customer_id,
+      subject: c.subject || undefined,
+      product_id: c.product_id || undefined,
+      order_id: c.order_id || undefined,
+      status: c.status || 'open',
+      created_at: c.created_at,
+      last_message_at: c.last_message_at,
+      unread_count: count || 0,
+      product: c.products ? mapDbProduct(c.products) : undefined,
+    });
+  }
+
+  return result;
+}
+
+export async function fetchAdminConversations(): Promise<Conversation[]> {
+  const { data: convs, error } = await supabase
+    .from('conversations')
+    .select('*, products(*), profiles:customer_id(name, email)')
+    .order('last_message_at', { ascending: false });
+
+  if (error) throw error;
+
+  const result: Conversation[] = [];
+  for (const c of convs || []) {
+    // Count unread customer messages
+    const { count } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('conversation_id', c.id)
+      .eq('sender_type', 'customer')
+      .eq('read', false);
+
+    const profile: any = Array.isArray(c.profiles) ? c.profiles[0] : c.profiles;
+
+    result.push({
+      id: c.id,
+      customer_id: c.customer_id,
+      subject: c.subject || undefined,
+      product_id: c.product_id || undefined,
+      order_id: c.order_id || undefined,
+      status: c.status || 'open',
+      created_at: c.created_at,
+      last_message_at: c.last_message_at,
+      customer_name: profile?.name || 'Customer',
+      customer_email: profile?.email || '',
+      unread_count: count || 0,
+      product: c.products ? mapDbProduct(c.products) : undefined,
+    });
+  }
+
+  return result;
+}
+
+export async function fetchConversationMessages(conversationId: string): Promise<Message[]> {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function sendMessage({
+  conversationId,
+  senderId,
+  senderType,
+  body,
+}: {
+  conversationId: string;
+  senderId?: string;
+  senderType: 'customer' | 'admin';
+  body: string;
+}): Promise<Message> {
+  const { data, error } = await supabase
+    .from('messages')
+    .insert([
+      {
+        conversation_id: conversationId,
+        sender_id: senderId || null,
+        sender_type: senderType,
+        body,
+        read: false,
+      },
+    ])
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  // Update conversation last_message_at
+  await supabase
+    .from('conversations')
+    .update({ last_message_at: new Date().toISOString() })
+    .eq('id', conversationId);
+
+  return data;
+}
+
+export async function startConversation({
+  customerId,
+  subject,
+  productId,
+  orderId,
+  initialMessage,
+}: {
+  customerId: string;
+  subject?: string;
+  productId?: string;
+  orderId?: string;
+  initialMessage: string;
+}): Promise<Conversation> {
+  // Check if an open conversation already exists for this product or order
+  let query = supabase
+    .from('conversations')
+    .select('*')
+    .eq('customer_id', customerId)
+    .eq('status', 'open');
+
+  if (productId) {
+    query = query.eq('product_id', productId);
+  } else if (orderId) {
+    query = query.eq('order_id', orderId);
+  }
+
+  const { data: existing } = await query.maybeSingle();
+
+  let conversationId = existing?.id;
+
+  if (!conversationId) {
+    const { data: newConv, error: createError } = await supabase
+      .from('conversations')
+      .insert([
+        {
+          customer_id: customerId,
+          subject: subject || (productId ? 'Product Inquiry' : orderId ? `Order #${orderId}` : 'Customer Support'),
+          product_id: productId || null,
+          order_id: orderId || null,
+          status: 'open',
+        },
+      ])
+      .select()
+      .single();
+
+    if (createError) throw createError;
+    conversationId = newConv.id;
+  }
+
+  // Send initial message if provided
+  if (initialMessage && initialMessage.trim().length > 0) {
+    await sendMessage({
+      conversationId,
+      senderId: customerId,
+      senderType: 'customer',
+      body: initialMessage.trim(),
+    });
+  }
+
+  // Fetch full conversation object
+  const { data: fullConv, error: fetchErr } = await supabase
+    .from('conversations')
+    .select('*, products(*)')
+    .eq('id', conversationId)
+    .single();
+
+  if (fetchErr) throw fetchErr;
+
+  return {
+    id: fullConv.id,
+    customer_id: fullConv.customer_id,
+    subject: fullConv.subject || undefined,
+    product_id: fullConv.product_id || undefined,
+    order_id: fullConv.order_id || undefined,
+    status: fullConv.status || 'open',
+    created_at: fullConv.created_at,
+    last_message_at: fullConv.last_message_at,
+    unread_count: 0,
+    product: fullConv.products ? mapDbProduct(fullConv.products) : undefined,
+  };
+}
+
+export async function markMessagesAsRead(conversationId: string, readerType: 'customer' | 'admin'): Promise<void> {
+  const targetSenderType = readerType === 'customer' ? 'admin' : 'customer';
+  await supabase
+    .from('messages')
+    .update({ read: true })
+    .eq('conversation_id', conversationId)
+    .eq('sender_type', targetSenderType)
+    .eq('read', false);
+}
+
+export async function fetchUnreadMessageCount(userId: string, isCustomer: boolean): Promise<number> {
+  if (isCustomer) {
+    // Count unread admin messages in customer's conversations
+    const { data: convs } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('customer_id', userId);
+
+    const convIds = (convs || []).map((c) => c.id);
+    if (convIds.length === 0) return 0;
+
+    const { count } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .in('conversation_id', convIds)
+      .eq('sender_type', 'admin')
+      .eq('read', false);
+
+    return count || 0;
+  } else {
+    // Count unread customer messages in all conversations for admin
+    const { count } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('sender_type', 'customer')
+      .eq('read', false);
+
+    return count || 0;
+  }
 }
 
 

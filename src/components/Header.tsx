@@ -24,10 +24,13 @@ import {
   LogOut,
   Settings,
   ClipboardList,
+  MessageSquare,
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { fetchUnreadMessageCount } from '../lib/api';
+import { supabase } from '../lib/supabase';
 
 const MEGA_MENU_CATEGORIES = [
   { label: 'Guitars', path: '/shop?category=Guitars', icon: Guitar, desc: 'Acoustic, electric, classical & ukuleles', descNe: 'ध्वनिक, इलेक्ट्रिक, शास्त्रीय र युुकुलेलहरू' },
@@ -48,12 +51,32 @@ export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Close menus when user becomes null (e.g. after logout)
   useEffect(() => {
     if (!user) {
       setAccountMenuOpen(false);
       setMobileMenuOpen(false);
+      setUnreadCount(0);
+    } else {
+      fetchUnreadMessageCount(user.id, !user.isAdmin).then(setUnreadCount).catch(console.error);
+
+      // Realtime subscription for message inserts
+      const channel = supabase
+        .channel(`header-messages:${user.id}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'messages' },
+          () => {
+            fetchUnreadMessageCount(user.id, !user.isAdmin).then(setUnreadCount).catch(console.error);
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user]);
 
@@ -173,10 +196,15 @@ export default function Header() {
                     <button
                       type="button"
                       onClick={() => setAccountMenuOpen(!accountMenuOpen)}
-                      className="flex items-center gap-1.5 text-mcn-charcoal hover:text-mcn-blue transition-colors focus:outline-none"
+                      className="flex items-center gap-1.5 text-mcn-charcoal hover:text-mcn-blue transition-colors focus:outline-none relative"
                     >
-                      <div className="w-8 h-8 rounded-full bg-mcn-blue/10 flex items-center justify-center text-mcn-blue font-bold text-sm">
+                      <div className="w-8 h-8 rounded-full bg-mcn-blue/10 flex items-center justify-center text-mcn-blue font-bold text-sm relative">
                         {(user?.name || 'User').charAt(0).toUpperCase()}
+                        {unreadCount > 0 && (
+                          <span className="absolute -top-1 -right-1 bg-mcn-red text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center border-2 border-white">
+                            {unreadCount}
+                          </span>
+                        )}
                       </div>
                       <span className="hidden md:block text-sm font-semibold max-w-[100px] truncate">
                         {(user?.name || 'User').split(' ')[0]}
@@ -203,6 +231,25 @@ export default function Header() {
                                 {t('my_orders')}
                               </Link>
                             </li>
+                            {!user.isAdmin && (
+                              <li>
+                                <Link
+                                  to="/messages"
+                                  onClick={() => setAccountMenuOpen(false)}
+                                  className="flex items-center justify-between px-4 py-2 text-sm text-mcn-charcoal hover:bg-mcn-gray-50 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <MessageSquare className="w-4 h-4 text-mcn-gray-500" />
+                                    <span>Messages</span>
+                                  </div>
+                                  {unreadCount > 0 && (
+                                    <span className="bg-mcn-red text-white text-[10px] font-bold rounded-full px-2 py-0.5">
+                                      {unreadCount}
+                                    </span>
+                                  )}
+                                </Link>
+                              </li>
+                            )}
                             {user.isAdmin && (
                               <li>
                                 <Link
