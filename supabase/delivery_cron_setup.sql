@@ -3,18 +3,39 @@
 -- Run this in the Supabase Dashboard SQL Editor
 -- ==========================================================
 
--- 1. Enable required extensions (if available in your Supabase project)
+-- 1. Enable required extensions
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS pg_net;
 
--- 2. Pure SQL Function option (runs directly in Postgres if Edge Function HTTP invocation is disabled)
+-- NOTE FOR PRODUCTION:
+-- In a production setup, sensitive keys like the service_role JWT should ideally be stored 
+-- in Supabase Vault (vault.secrets) rather than hardcoded inside function definitions.
+
+-- Option A: Edge Function HTTP Invocation via pg_net
+CREATE OR REPLACE FUNCTION public.invoke_delivery_checkin_edge_function()
+RETURNS void AS $$
+DECLARE
+  service_key TEXT := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNnaWdza3R5ZXloeGpvZnNheHFzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NDM1MDg5MywiZXhwIjoyMDk5OTI2ODkzfQ.BtoOkhkzH6y_K1ISNq9DhLk4snOEyMJwcUE75pszgxY';
+BEGIN
+  PERFORM net.http_post(
+    url := 'https://sgigsktyeyhxjofsaxqs.functions.supabase.co/delivery-checkin',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || service_key
+    ),
+    body := '{}'::jsonb
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Option B: Pure SQL Function (runs directly in Postgres if Edge Function is not used)
 CREATE OR REPLACE FUNCTION public.process_delivery_confirmations()
 RETURNS void AS $$
 DECLARE
   order_rec RECORD;
   now_time TIMESTAMPTZ := now();
-  first_threshold_minutes INTEGER := 45; -- Set to 1 for quick testing
-  repeat_threshold_minutes INTEGER := 20; -- Set to 1 for quick testing
+  first_threshold_minutes INTEGER := 45;
+  repeat_threshold_minutes INTEGER := 20;
 BEGIN
   FOR order_rec IN
     SELECT id, user_id, customer_name, out_for_delivery_at, delivery_confirmation_attempts, last_delivery_checkin_at
@@ -23,8 +44,6 @@ BEGIN
       AND (delivery_confirmed_by_customer IS FALSE OR delivery_confirmed_by_customer IS NULL)
       AND COALESCE(delivery_confirmation_attempts, 0) < 6
   LOOP
-    -- Check if first check-in is due (>= 45 mins after out_for_delivery_at)
-    -- or if repeat check-in is due (>= 20 mins after last_delivery_checkin_at)
     IF (order_rec.delivery_confirmation_attempts = 0 AND 
         order_rec.out_for_delivery_at IS NOT NULL AND 
         now_time >= (order_rec.out_for_delivery_at + (first_threshold_minutes || ' minutes')::interval))
@@ -33,7 +52,6 @@ BEGIN
         order_rec.last_delivery_checkin_at IS NOT NULL AND 
         now_time >= (order_rec.last_delivery_checkin_at + (repeat_threshold_minutes || ' minutes')::interval))
     THEN
-      -- Update attempt count and last check-in timestamp
       UPDATE public.orders
       SET 
         delivery_confirmation_attempts = COALESCE(delivery_confirmation_attempts, 0) + 1,
