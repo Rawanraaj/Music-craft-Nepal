@@ -428,26 +428,6 @@ export default function Admin() {
     }
   }, [user, authLoading, navigate]);
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-mcn-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-mcn-blue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-mcn-gray-500 font-bold">Authenticating...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user || !user.isAdmin) return null;
-
-  // Overview calculations
-  const totalRevenue = orders
-    .filter((o) => o.status !== 'Cancelled')
-    .reduce((sum, o) => sum + o.total, 0);
-  const pendingOrders = orders.filter((o) => o.status === 'Placed' || o.status === 'Confirmed' || o.status === 'Shipped' || o.status === 'Out for Delivery').length;
-  const newInquiries = inquiries.filter((i) => i.status === 'new').length;
-
   // Analytics Calculations
   const salesData = useMemo(() => {
     const daily: Record<string, number> = {};
@@ -481,6 +461,26 @@ export default function Admin() {
       });
     return Object.keys(sales).map((cat) => ({ category: cat, UnitsSold: sales[cat] }));
   }, [orders]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-mcn-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-mcn-blue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-mcn-gray-500 font-bold">Authenticating...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || !user.isAdmin) return null;
+
+  // Overview calculations
+  const totalRevenue = orders
+    .filter((o) => o.status !== 'Cancelled')
+    .reduce((sum, o) => sum + o.total, 0);
+  const pendingOrders = orders.filter((o) => o.status === 'Placed' || o.status === 'Confirmed' || o.status === 'Shipped' || o.status === 'Out for Delivery').length;
+  const newInquiries = inquiries.filter((i) => i.status === 'new').length;
 
   // CSV Exports
   const exportProductsCSV = () => {
