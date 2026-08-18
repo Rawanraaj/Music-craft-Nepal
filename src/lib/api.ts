@@ -811,16 +811,30 @@ export async function fetchCustomerConversations(customerId: string): Promise<Co
 }
 
 export async function fetchAdminConversations(): Promise<Conversation[]> {
+  // Step 1: Fetch conversations with product join only (no cross-schema profiles join)
   const { data: convs, error } = await supabase
     .from('conversations')
-    .select('*, products(*), profiles:customer_id(name, email)')
+    .select('*, products(*)')
     .order('last_message_at', { ascending: false });
 
   if (error) throw error;
+  if (!convs || convs.length === 0) return [];
 
+  // Step 2: Batch-fetch profiles for all unique customer IDs
+  const customerIds = [...new Set(convs.map((c) => c.customer_id))];
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, name, email')
+    .in('id', customerIds);
+
+  const profileMap = new Map<string, { name: string; email: string }>();
+  for (const p of profiles || []) {
+    profileMap.set(p.id, { name: p.name || 'Customer', email: p.email || '' });
+  }
+
+  // Step 3: Build result with unread counts
   const result: Conversation[] = [];
-  for (const c of convs || []) {
-    // Count unread customer messages
+  for (const c of convs) {
     const { count } = await supabase
       .from('messages')
       .select('*', { count: 'exact', head: true })
@@ -828,7 +842,7 @@ export async function fetchAdminConversations(): Promise<Conversation[]> {
       .eq('sender_type', 'customer')
       .eq('read', false);
 
-    const profile: any = Array.isArray(c.profiles) ? c.profiles[0] : c.profiles;
+    const profile = profileMap.get(c.customer_id);
 
     result.push({
       id: c.id,

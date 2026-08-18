@@ -209,8 +209,10 @@ export default function Admin() {
   const [adminNewMessage, setAdminNewMessage] = useState('');
   const [adminUnreadCount, setAdminUnreadCount] = useState(0);
   const [adminSending, setAdminSending] = useState(false);
+  const [adminMessagesError, setAdminMessagesError] = useState<string | null>(null);
 
   const loadAdminConversations = async (selectId?: string) => {
+    setAdminMessagesError(null);
     try {
       const convs = await fetchAdminConversations();
       setAdminConversations(convs);
@@ -222,8 +224,11 @@ export default function Admin() {
         const found = convs.find((c) => c.id === targetId) || convs[0];
         setAdminActiveConv(found);
       }
-    } catch (err) {
+    } catch (err: any) {
+      const msg = err?.message || 'Unknown error loading messages';
       console.error('Error loading admin conversations:', err);
+      setAdminMessagesError(msg);
+      showToast('Failed to load messages: ' + msg, 'error');
     }
   };
 
@@ -1516,7 +1521,21 @@ export default function Admin() {
                         </button>
                       );
                     })}
-                    {adminConversations.length === 0 && (
+                    {adminConversations.length === 0 && adminMessagesError && (
+                      <div className="p-6 text-center">
+                        <div className="inline-flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm font-bold px-4 py-3 rounded-xl mb-3">
+                          ⚠️ Failed to load messages
+                        </div>
+                        <p className="text-xs text-mcn-gray-500 mb-3">{adminMessagesError}</p>
+                        <button
+                          onClick={() => loadAdminConversations()}
+                          className="text-xs font-bold text-mcn-blue hover:underline"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    )}
+                    {adminConversations.length === 0 && !adminMessagesError && (
                       <div className="p-8 text-center text-sm text-mcn-gray-400 font-semibold">
                         No customer messages yet.
                       </div>
