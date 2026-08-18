@@ -309,15 +309,19 @@ export async function updateOrderStatus(id: string, status: Order['status']): Pr
 }
 
 export async function confirmOrderDelivery(id: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('orders')
     .update({
       status: 'Delivered',
       delivery_confirmed_by_customer: true,
     })
-    .eq('id', id);
+    .eq('id', id)
+    .select();
 
   if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error('Permission denied: Unable to update order status. Ensure you are logged into your account.');
+  }
 }
 
 // WHOLESALE INQUIRIES API

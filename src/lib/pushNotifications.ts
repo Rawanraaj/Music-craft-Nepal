@@ -1,7 +1,7 @@
 import { createPushSubscription } from './api';
 
-// Public VAPID Key. In a production environment, this matches the private key on the push server.
-const VAPID_PUBLIC_KEY = 'BO3W_6S3y4k6qPzMoc1X7fPpeB-p8V1n_o5N3KzC17u_g_xP9Q_m3X-qTzT3Z1u_oO3N3KzC17u_g_xP9Q';
+// Public VAPID Key (Valid 65-byte uncompressed P-256 EC public key in base64url format)
+const VAPID_PUBLIC_KEY = 'BCQ-_4lEkfKwfWeIOicNZRVhkajwvJCCNqboz0RRoWe8IuqVouraHT3vr-6aMvfvGKGSMYn1WywUCHb7wwMGHOI';
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
