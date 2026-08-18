@@ -123,12 +123,19 @@ export default function CustomerMessages() {
     setSending(true);
 
     try {
-      await sendMessage({
+      const sentMsg = await sendMessage({
         conversationId: activeConv.id,
         senderId: user.id,
         senderType: 'customer',
         body: bodyText,
       });
+
+      // Immediately append sent message so customer sees message instantly
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === sentMsg.id)) return prev;
+        return [...prev, sentMsg];
+      });
+      setTimeout(scrollToBottom, 100);
 
       // Refresh conversations order
       loadConversations(activeConv.id);

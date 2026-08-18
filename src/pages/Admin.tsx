@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -205,11 +205,16 @@ export default function Admin() {
   // Admin Messages States
   const [adminConversations, setAdminConversations] = useState<Conversation[]>([]);
   const [adminActiveConv, setAdminActiveConv] = useState<Conversation | null>(null);
+  const adminActiveConvRef = useRef<Conversation | null>(null);
   const [adminMessages, setAdminMessages] = useState<Message[]>([]);
   const [adminNewMessage, setAdminNewMessage] = useState('');
   const [adminUnreadCount, setAdminUnreadCount] = useState(0);
   const [adminSending, setAdminSending] = useState(false);
   const [adminMessagesError, setAdminMessagesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    adminActiveConvRef.current = adminActiveConv;
+  }, [adminActiveConv]);
 
   const loadAdminConversations = async (selectId?: string) => {
     setAdminMessagesError(null);
@@ -254,11 +259,17 @@ export default function Admin() {
     setAdminSending(true);
 
     try {
-      await apiSendMessage({
+      const sentMsg = await apiSendMessage({
         conversationId: adminActiveConv.id,
         senderId: user.id,
         senderType: 'admin',
         body: bodyText,
+      });
+
+      // Immediately append sent message to active conversation thread so it appears instantly
+      setAdminMessages((prev) => {
+        if (prev.some((m) => m.id === sentMsg.id)) return prev;
+        return [...prev, sentMsg];
       });
 
       loadAdminConversations(adminActiveConv.id);
@@ -287,13 +298,17 @@ export default function Admin() {
         { event: 'INSERT', schema: 'public', table: 'messages' },
         (payload) => {
           const newMsg = payload.new as Message;
-          if (adminActiveConv && newMsg.conversation_id === adminActiveConv.id) {
-            setAdminMessages((prev) => [...prev, newMsg]);
+          const currentActive = adminActiveConvRef.current;
+          if (currentActive && newMsg.conversation_id === currentActive.id) {
+            setAdminMessages((prev) => {
+              if (prev.some((m) => m.id === newMsg.id)) return prev;
+              return [...prev, newMsg];
+            });
             if (newMsg.sender_type === 'customer') {
-              markMessagesAsRead(adminActiveConv.id, 'admin');
+              markMessagesAsRead(currentActive.id, 'admin');
             }
           }
-          loadAdminConversations(adminActiveConv?.id);
+          loadAdminConversations(currentActive?.id);
         }
       )
       .subscribe();
