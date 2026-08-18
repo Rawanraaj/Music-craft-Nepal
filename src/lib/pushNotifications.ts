@@ -18,19 +18,44 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
-export async function registerPushNotifications(userId: string | null): Promise<boolean> {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+export function isPushSupported(): boolean {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+export function getNotificationPermission(): NotificationPermission | 'unsupported' {
+  if (!isPushSupported()) return 'unsupported';
+  return Notification.permission;
+}
+
+export interface PushRegistrationResult {
+  success: boolean;
+  permission: NotificationPermission | 'unsupported';
+  message?: string;
+}
+
+export async function registerPushNotifications(userId: string | null): Promise<PushRegistrationResult> {
+  if (!isPushSupported()) {
     console.warn('Push messaging is not supported in this browser.');
-    return false;
+    return {
+      success: false,
+      permission: 'unsupported',
+      message: 'Push notifications are not supported by your browser.',
+    };
   }
 
   try {
     const registration = await navigator.serviceWorker.register('/sw.js');
     
-    // Request permission
+    // Request permission (must be triggered by explicit user gesture)
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
-      return false;
+      return {
+        success: false,
+        permission,
+        message: permission === 'denied'
+          ? 'Notifications are blocked in your browser settings.'
+          : 'Notification permission was not granted.',
+      };
     }
 
     // Subscribe to push notifications
@@ -43,9 +68,17 @@ export async function registerPushNotifications(userId: string | null): Promise<
 
     // Save registration JSON to Supabase
     await createPushSubscription(userId, subscription.toJSON());
-    return true;
-  } catch (error) {
+    return {
+      success: true,
+      permission: 'granted',
+      message: 'Push notifications successfully enabled!',
+    };
+  } catch (error: any) {
     console.error('Error subscribing to push notifications:', error);
-    return false;
+    return {
+      success: false,
+      permission: Notification.permission,
+      message: error?.message || 'Error enabling push notifications.',
+    };
   }
 }

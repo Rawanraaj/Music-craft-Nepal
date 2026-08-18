@@ -5,8 +5,9 @@ import { useToast } from '../context/ToastContext';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { fetchUserOrders, cancelOrder, confirmOrderDelivery, startConversation } from '../lib/api';
 import type { Order } from '../types';
-import { ShoppingBag, ChevronRight, XCircle, Clock, Truck, MessageSquare, CheckCircle2 } from 'lucide-react';
+import { ShoppingBag, ChevronRight, XCircle, Clock, Truck, MessageSquare, CheckCircle2, Bell } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { registerPushNotifications, getNotificationPermission } from '../lib/pushNotifications';
 
 const STATUS_STEPS = ['Placed', 'Confirmed', 'Shipped', 'Out for Delivery', 'Delivered'];
 
@@ -20,6 +21,18 @@ export default function MyOrders() {
   const [error, setError] = useState<string | null>(null);
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
   const [confirmDeliveryId, setConfirmDeliveryId] = useState<string | null>(null);
+  const [pushPermission, setPushPermission] = useState<NotificationPermission | 'unsupported'>(getNotificationPermission());
+
+  const handleEnableCustomerNotifications = async () => {
+    if (!user) return;
+    const res = await registerPushNotifications(user.id);
+    setPushPermission(res.permission);
+    if (res.success) {
+      showToast('Delivery notifications enabled!', 'success');
+    } else {
+      showToast(res.message || 'Could not enable notifications.', 'error');
+    }
+  };
 
   const loadOrders = async () => {
     if (!user) {
@@ -143,6 +156,26 @@ export default function MyOrders() {
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-mcn-red text-sm font-semibold">
             {error}
+          </div>
+        )}
+
+        {pushPermission !== 'granted' && (
+          <div className="mb-6 bg-gradient-to-r from-mcn-blue/10 via-blue-50 to-emerald-50 border border-mcn-blue/20 rounded-2xl p-4 md:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-mcn-blue text-white flex items-center justify-center shrink-0 shadow-sm">
+                <Bell className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-extrabold text-mcn-charcoal">Get Instant Delivery & Order Status Alerts</h3>
+                <p className="text-xs text-mcn-gray-500 mt-0.5">Receive real-time push notifications when your instrument ships or arrives.</p>
+              </div>
+            </div>
+            <button
+              onClick={handleEnableCustomerNotifications}
+              className="w-full sm:w-auto shrink-0 bg-mcn-blue hover:bg-mcn-blue-dark text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
+            >
+              <Bell className="w-3.5 h-3.5" /> Enable Delivery Notifications
+            </button>
           </div>
         )}
 

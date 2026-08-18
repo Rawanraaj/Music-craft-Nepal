@@ -25,7 +25,12 @@ import {
   MessageSquare,
   Send,
   CheckCheck,
+  Bell,
 } from 'lucide-react';
+import {
+  registerPushNotifications,
+  getNotificationPermission,
+} from '../lib/pushNotifications';
 import {
   BarChart,
   Bar,
@@ -210,7 +215,19 @@ export default function Admin() {
   const [adminNewMessage, setAdminNewMessage] = useState('');
   const [adminUnreadCount, setAdminUnreadCount] = useState(0);
   const [adminSending, setAdminSending] = useState(false);
-  const [adminMessagesError, setAdminMessagesError] = useState<string | null>(null);
+  // Push Notification State
+  const [pushPermission, setPushPermission] = useState<NotificationPermission | 'unsupported'>(getNotificationPermission());
+
+  const handleEnableNotifications = async () => {
+    if (!user) return;
+    const res = await registerPushNotifications(user.id);
+    setPushPermission(res.permission);
+    if (res.success) {
+      showToast('Order push notifications successfully enabled!', 'success');
+    } else {
+      showToast(res.message || 'Failed to enable push notifications.', 'error');
+    }
+  };
 
   useEffect(() => {
     adminActiveConvRef.current = adminActiveConv;
@@ -412,18 +429,6 @@ export default function Admin() {
         verifyAdminSecurity();
         loadAllData();
         loadCmsData();
-
-        if (user?.id) {
-          import('../lib/pushNotifications')
-            .then(({ registerPushNotifications }) => {
-              registerPushNotifications(user.id).catch((err) => {
-                console.warn('Push registration declined or failed:', err);
-              });
-            })
-            .catch((err) => {
-              console.error('Error loading push notification module:', err);
-            });
-        }
       }
     }
   }, [user, authLoading, navigate]);
@@ -1169,12 +1174,26 @@ export default function Admin() {
               </button>
               <h1 className="text-lg font-extrabold text-mcn-charcoal capitalize">{activeTab}</h1>
             </div>
-            <button
-              onClick={loadAllData}
-              className="text-xs text-mcn-blue font-bold border border-mcn-blue px-3 py-1.5 rounded-lg hover:bg-mcn-blue hover:text-white transition-colors"
-            >
-              Refresh Data
-            </button>
+            <div className="flex items-center gap-3">
+              {pushPermission === 'granted' ? (
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg shadow-sm">
+                  <Bell className="w-3.5 h-3.5" /> Order Alerts Active
+                </span>
+              ) : (
+                <button
+                  onClick={handleEnableNotifications}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-300 px-3 py-1.5 rounded-lg hover:bg-amber-100 transition-colors shadow-sm"
+                >
+                  <Bell className="w-3.5 h-3.5 text-amber-600 animate-pulse" /> Enable Order Notifications
+                </button>
+              )}
+              <button
+                onClick={loadAllData}
+                className="text-xs text-mcn-blue font-bold border border-mcn-blue px-3 py-1.5 rounded-lg hover:bg-mcn-blue hover:text-white transition-colors"
+              >
+                Refresh Data
+              </button>
+            </div>
           </div>
         </header>
 
