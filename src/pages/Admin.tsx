@@ -215,6 +215,7 @@ export default function Admin() {
   const [adminNewMessage, setAdminNewMessage] = useState('');
   const [adminUnreadCount, setAdminUnreadCount] = useState(0);
   const [adminSending, setAdminSending] = useState(false);
+  const [adminMessagesError, setAdminMessagesError] = useState<string | null>(null);
   // Push Notification State
   const [pushPermission, setPushPermission] = useState<NotificationPermission | 'unsupported'>(getNotificationPermission());
 

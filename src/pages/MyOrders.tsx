@@ -159,25 +159,33 @@ export default function MyOrders() {
           </div>
         )}
 
-        {pushPermission !== 'granted' && (
-          <div className="mb-6 bg-gradient-to-r from-mcn-blue/10 via-blue-50 to-emerald-50 border border-mcn-blue/20 rounded-2xl p-4 md:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-mcn-blue text-white flex items-center justify-center shrink-0 shadow-sm">
-                <Bell className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-extrabold text-mcn-charcoal">Get Instant Delivery & Order Status Alerts</h3>
-                <p className="text-xs text-mcn-gray-500 mt-0.5">Receive real-time push notifications when your instrument ships or arrives.</p>
-              </div>
+        <div className="mb-6 bg-gradient-to-r from-mcn-blue/10 via-blue-50 to-emerald-50 border border-mcn-blue/20 rounded-2xl p-4 md:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-mcn-blue text-white flex items-center justify-center shrink-0 shadow-sm">
+              <Bell className="w-5 h-5" />
             </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-mcn-charcoal">Instant Delivery & Order Alerts</h3>
+              <p className="text-xs text-mcn-gray-500 mt-0.5">
+                {pushPermission === 'granted'
+                  ? 'Real-time push notifications are active for your account.'
+                  : 'Receive real-time push notifications when your instrument ships or arrives.'}
+              </p>
+            </div>
+          </div>
+          {pushPermission === 'granted' ? (
+            <span className="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-300 px-4 py-2.5 rounded-xl">
+              <CheckCircle2 className="w-4 h-4" /> Notifications Active
+            </span>
+          ) : (
             <button
               onClick={handleEnableCustomerNotifications}
               className="w-full sm:w-auto shrink-0 bg-mcn-blue hover:bg-mcn-blue-dark text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
             >
               <Bell className="w-3.5 h-3.5" /> Enable Delivery Notifications
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
         {orders.length === 0 ? (
           <div className="text-center py-16 bg-white border border-mcn-gray-200 rounded-2xl p-8 shadow-sm">

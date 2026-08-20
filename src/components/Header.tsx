@@ -25,12 +25,18 @@ import {
   Settings,
   ClipboardList,
   MessageSquare,
+  Bell,
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
 import { fetchUnreadMessageCount } from '../lib/api';
 import { supabase } from '../lib/supabase';
+import {
+  registerPushNotifications,
+  getNotificationPermission,
+} from '../lib/pushNotifications';
 
 const MEGA_MENU_CATEGORIES = [
   { label: 'Guitars', path: '/shop?category=Guitars', icon: Guitar, desc: 'Acoustic, electric, classical & ukuleles', descNe: 'ध्वनिक, इलेक्ट्रिक, शास्त्रीय र युुकुलेलहरू' },
@@ -47,11 +53,24 @@ export default function Header() {
   const { user, logout } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pushPermission, setPushPermission] = useState<NotificationPermission | 'unsupported'>(getNotificationPermission());
+
+  const handleToggleNotifications = async () => {
+    if (!user) return;
+    const res = await registerPushNotifications(user.id);
+    setPushPermission(res.permission);
+    if (res.success) {
+      showToast('Notifications successfully enabled!', 'success');
+    } else {
+      showToast(res.message || 'Notification permission was not granted.', 'error');
+    }
+  };
 
   // Close menus when user becomes null (e.g. after logout)
   useEffect(() => {
@@ -262,6 +281,29 @@ export default function Header() {
                                 </Link>
                               </li>
                             )}
+                            <li>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleToggleNotifications();
+                                }}
+                                className="flex items-center justify-between w-full text-left px-4 py-2 text-sm text-mcn-charcoal hover:bg-mcn-gray-50 transition-colors"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Bell className="w-4 h-4 text-mcn-blue" />
+                                  <span>Notifications</span>
+                                </div>
+                                {pushPermission === 'granted' ? (
+                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                                    Active
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded">
+                                    Enable
+                                  </span>
+                                )}
+                              </button>
+                            </li>
                             <li className="border-t border-mcn-gray-100 mt-1 pt-1">
                               <button
                                 type="button"
