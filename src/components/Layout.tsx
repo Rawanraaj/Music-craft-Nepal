@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import Header from './Header';
 import Footer from './Footer';
 import CartDrawer from './CartDrawer';
+import CustomerTutorialModal from './CustomerTutorialModal';
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (
@@ -10,6 +11,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       <main className="flex-1">{children}</main>
       <Footer />
       <CartDrawer />
+      <CustomerTutorialModal />
     </div>
   );
 }
