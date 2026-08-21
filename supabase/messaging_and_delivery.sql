@@ -99,3 +99,17 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
   NULL;
 END $$;
+
+-- 9. Push Subscriptions Table RLS Policies
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can insert their own push subscriptions" ON public.push_subscriptions;
+CREATE POLICY "Users can insert their own push subscriptions" ON public.push_subscriptions
+  FOR INSERT WITH CHECK (
+    auth.uid() = user_id OR user_id IS NULL OR public.is_admin()
+  );
+
+DROP POLICY IF EXISTS "Admins have full access to push subscriptions" ON public.push_subscriptions;
+CREATE POLICY "Admins have full access to push subscriptions" ON public.push_subscriptions
+  FOR ALL USING (public.is_admin());
+
