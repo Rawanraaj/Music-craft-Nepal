@@ -21,6 +21,8 @@ import MyOrders from './pages/MyOrders';
 import CustomerMessages from './pages/CustomerMessages';
 import ShippingInfo from './pages/ShippingInfo';
 import ReturnsRefunds from './pages/ReturnsRefunds';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -61,6 +63,8 @@ function AppRoutes() {
         <Route path="/messages" element={<CustomerMessages />} />
         <Route path="/shipping-info" element={<ShippingInfo />} />
         <Route path="/returns-refunds" element={<ReturnsRefunds />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
       </Routes>
     </Layout>
   );

@@ -22,6 +22,13 @@ export default function Contact() {
     hours: 'Sun-Fri: 10AM - 6PM',
   });
 
+  const [grievanceOfficer, setGrievanceOfficer] = useState<any>({
+    officer_name: 'Grievance Officer (To be updated)',
+    officer_phone: '+977-9800000000',
+    officer_email: 'support@musiccraftnepal.com',
+    resolution_timeline_note: "We aim to resolve complaints within 15 days as per Nepal's E-Commerce regulations.",
+  });
+
   useEffect(() => {
     fetchSiteContent('contact_content')
       .then((data) => {
@@ -38,6 +45,14 @@ export default function Contact() {
         }
       })
       .catch((err) => console.error('Error fetching contact details:', err));
+
+    fetchSiteContent('grievance_officer')
+      .then((data) => {
+        if (data) {
+          setGrievanceOfficer((prev: any) => ({ ...prev, ...data }));
+        }
+      })
+      .catch((err) => console.error('Error fetching grievance officer info:', err));
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -79,6 +94,26 @@ export default function Contact() {
                 </div>
               </div>
             ))}
+
+            {/* Grievance Officer Box (Nepal E-Commerce Act Compliance) */}
+            <div className="p-4 bg-mcn-blue/5 border border-mcn-blue/20 rounded-xl space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-mcn-blue"></span>
+                <p className="text-xs font-bold text-mcn-blue uppercase tracking-wide">
+                  Grievance Officer (Consumer Complaints)
+                </p>
+              </div>
+              <p className="text-sm font-extrabold text-mcn-charcoal">
+                {tCms(grievanceOfficer.officer_name)}
+              </p>
+              <div className="text-xs text-mcn-gray-600 space-y-1">
+                <p><span className="font-semibold text-mcn-charcoal">Phone:</span> {tCms(grievanceOfficer.officer_phone)}</p>
+                <p><span className="font-semibold text-mcn-charcoal">Email:</span> {tCms(grievanceOfficer.officer_email)}</p>
+              </div>
+              <p className="text-[11px] text-mcn-gray-500 italic pt-1 border-t border-mcn-blue/10">
+                {tCms(grievanceOfficer.resolution_timeline_note)}
+              </p>
+            </div>
           </div>
 
           {/* Form */}

@@ -3,9 +3,9 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { fetchUserOrders, cancelOrder, confirmOrderDelivery, startConversation } from '../lib/api';
+import { fetchUserOrders, cancelOrder, confirmOrderDelivery, startConversation, fetchSiteContent } from '../lib/api';
 import type { Order } from '../types';
-import { ShoppingBag, ChevronRight, XCircle, Clock, Truck, MessageSquare, CheckCircle2, Bell } from 'lucide-react';
+import { ShoppingBag, ChevronRight, XCircle, Clock, Truck, MessageSquare, CheckCircle2, Bell, FileText } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { registerPushNotifications, getNotificationPermission } from '../lib/pushNotifications';
 
@@ -101,14 +101,153 @@ export default function MyOrders() {
     }
   };
 
+  const [businessInfo, setBusinessInfo] = useState<any>({
+    registered_business_name: 'Music Craft Nepal Pvt. Ltd.',
+    registration_number: 'To be updated',
+    pan_vat_number: 'To be updated',
+    head_office_address: 'Bhotahity, Kathmandu, Nepal',
+  });
+
+  useEffect(() => {
+    fetchSiteContent('business_info')
+      .then((data) => {
+        if (data) setBusinessInfo((prev: any) => ({ ...prev, ...data }));
+      })
+      .catch(() => {});
+  }, []);
+
   const getStepIndex = (status: string) => STATUS_STEPS.indexOf(status);
 
-  const isCancelable = (orderDateStr: string, status: string) => {
-    if (status === 'Cancelled' || status === 'Delivered') return false;
-    const placedTime = new Date(orderDateStr).getTime();
-    const now = new Date().getTime();
-    const oneHour = 60 * 60 * 1000;
-    return (now - placedTime) < oneHour;
+  // Extend cancellation policy window: allow cancellation any time BEFORE shipped (status is Placed or Confirmed)
+  const isCancelable = (_orderDateStr: string, status: string) => {
+    return status === 'Placed' || status === 'Confirmed';
+  };
+
+  const handleDownloadInvoice = (order: Order) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showToast('Pop-up blocked. Please allow pop-ups to download receipt.', 'error');
+      return;
+    }
+
+    const itemsHtml = order.items
+      .map(
+        (item) => `
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #eee;">
+          <strong>${item.product.name}</strong>
+          ${item.selectedVariant ? `<br/><small style="color:#666;">Variant: ${item.selectedVariant}</small>` : ''}
+        </td>
+        <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">Rs. ${item.product.price.toLocaleString()}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">Rs. ${(item.product.price * item.quantity).toLocaleString()}</td>
+      </tr>
+    `
+      )
+      .join('');
+
+    const subtotal = order.items.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
+    const shipping = order.total >= subtotal ? Math.max(0, order.total - subtotal) : 0;
+
+    const receiptHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Receipt - Order ${order.id}</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 25px; color: #1e293b; line-height: 1.5; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0284c7; padding-bottom: 15px; margin-bottom: 20px; }
+          .title { font-size: 24px; font-weight: 800; color: #0f172a; margin: 0; }
+          .badge { font-size: 11px; background: #e0f2fe; color: #0369a1; font-weight: 700; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-top: 4px; }
+          .biz-info { text-align: right; font-size: 12px; color: #475569; }
+          .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 13px; margin-bottom: 25px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
+          .meta-title { font-weight: 700; color: #0f172a; margin-bottom: 4px; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
+          th { background: #f1f5f9; padding: 10px; text-align: left; font-weight: 700; border-bottom: 2px solid #cbd5e1; }
+          .totals { width: 300px; margin-left: auto; font-size: 13px; border-top: 2px solid #e2e8f0; padding-top: 10px; }
+          .totals-row { display: flex; justify-content: space-between; padding: 4px 0; }
+          .totals-row.grand { font-size: 16px; font-weight: 800; border-top: 2px solid #0f172a; padding-top: 8px; margin-top: 4px; }
+          .footer-note { text-align: center; margin-top: 40px; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 15px; }
+          @media print { .no-print { display: none; } }
+        </style>
+      </head>
+      <body>
+        <div class="no-print" style="margin-bottom:20px; text-align:right;">
+          <button onclick="window.print()" style="background:#0284c7; color:white; border:none; padding:10px 20px; font-weight:bold; border-radius:6px; cursor:pointer;">🖨️ Print / Download PDF</button>
+        </div>
+        <div class="header">
+          <div>
+            <h1 class="title">Music Craft Nepal</h1>
+            <span class="badge">OFFICIAL PURCHASE RECEIPT</span>
+          </div>
+          <div class="biz-info">
+            <strong>${businessInfo.registered_business_name}</strong><br/>
+            Reg #: ${businessInfo.registration_number}<br/>
+            PAN/VAT #: ${businessInfo.pan_vat_number}<br/>
+            ${businessInfo.head_office_address}
+          </div>
+        </div>
+
+        <div class="meta-grid">
+          <div>
+            <div class="meta-title">Order Details</div>
+            <strong>Order ID:</strong> ${order.id}<br/>
+            <strong>Date:</strong> ${order.date}<br/>
+            <strong>Payment Method:</strong> ${order.paymentMethod}<br/>
+            <strong>Status:</strong> ${order.status}
+          </div>
+          <div>
+            <div class="meta-title">Customer Information</div>
+            <strong>Name:</strong> ${order.customerName}<br/>
+            <strong>Phone:</strong> ${order.phone}<br/>
+            <strong>Email:</strong> ${order.email}<br/>
+            <strong>Address:</strong> ${order.address}
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Item Description</th>
+              <th style="text-align:center;">Qty</th>
+              <th style="text-align:right;">Unit Price</th>
+              <th style="text-align:right;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <div class="totals">
+          <div class="totals-row">
+            <span>Subtotal:</span>
+            <span>Rs. ${subtotal.toLocaleString()}</span>
+          </div>
+          <div class="totals-row">
+            <span>Delivery Fee:</span>
+            <span>${shipping === 0 ? 'FREE' : `Rs. ${shipping}`}</span>
+          </div>
+          <div class="totals-row grand">
+            <span>Grand Total:</span>
+            <span>Rs. ${order.total.toLocaleString()}</span>
+          </div>
+        </div>
+
+        <div class="footer-note">
+          Thank you for purchasing from Music Craft Nepal. This is an itemized sales receipt under Nepal E-Commerce Regulations.
+        </div>
+        <script>
+          window.onload = function() {
+            setTimeout(function() { window.print(); }, 400);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(receiptHtml);
+    printWindow.document.close();
   };
 
   if (authLoading) {
@@ -245,6 +384,14 @@ export default function MyOrders() {
                           Mark as Received
                         </button>
                       )}
+
+                      <button
+                        onClick={() => handleDownloadInvoice(order)}
+                        className="bg-white hover:bg-mcn-gray-100 text-mcn-charcoal border border-mcn-gray-300 font-bold text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-mcn-blue" />
+                        Download Invoice
+                      </button>
 
                       <button
                         onClick={() => handleMessageSeller(order)}

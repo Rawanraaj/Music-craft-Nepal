@@ -49,7 +49,16 @@ export default function ReturnsRefunds() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 py-12 space-y-10">
+      <div className="max-w-4xl mx-auto px-4 py-12 space-y-8">
+        {/* Delivery Availability Notice */}
+        <section className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start gap-3.5">
+          <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-xs md:text-sm text-amber-900 leading-relaxed font-semibold">
+            <span className="font-extrabold text-amber-950 block mb-0.5">Delivery Scoping Notice:</span>
+            At this time, delivery is only available within Kathmandu Valley. We are not yet able to fulfill orders outside the valley. Please check your delivery eligibility before placing an order.
+          </div>
+        </section>
+
         {/* Return Period Banner */}
         <section className="bg-mcn-blue/10 border border-mcn-blue/30 rounded-2xl p-6 md:p-8 flex items-center gap-6">
           <div className="w-14 h-14 rounded-2xl bg-mcn-blue text-white flex items-center justify-center shrink-0 shadow-md">

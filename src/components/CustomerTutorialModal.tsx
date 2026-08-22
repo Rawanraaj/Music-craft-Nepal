@@ -126,11 +126,19 @@ export default function CustomerTutorialModal() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 <div className="p-3 bg-mcn-gray-50 border border-mcn-gray-200 rounded-xl flex items-center gap-3">
                   <Truck className="w-5 h-5 text-mcn-blue shrink-0" />
-                  <span className="text-xs font-bold text-mcn-charcoal">Nationwide Delivery</span>
+                  <span className="text-xs font-bold text-mcn-charcoal">Kathmandu Valley Delivery</span>
                 </div>
                 <div className="p-3 bg-mcn-gray-50 border border-mcn-gray-200 rounded-xl flex items-center gap-3">
                   <ShieldCheck className="w-5 h-5 text-mcn-mint-dark shrink-0" />
                   <span className="text-xs font-bold text-mcn-charcoal">Handcrafted Quality</span>
+                </div>
+              </div>
+
+              {/* Delivery Availability Disclosure Note */}
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 leading-relaxed flex items-start gap-2.5">
+                <Truck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-amber-950">Delivery Availability:</span> Currently, we only deliver within Kathmandu Valley. Delivery outside the valley is not yet available — we're working on expanding this soon.
                 </div>
               </div>
             </div>

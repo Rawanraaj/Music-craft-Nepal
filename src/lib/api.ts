@@ -290,7 +290,40 @@ export async function createOrder(order: Omit<Order, 'id' | 'date'>): Promise<Or
     .single();
 
   if (fetchError) throw fetchError;
-  return mapDbOrder(fullOrder);
+  const mappedOrder = mapDbOrder(fullOrder);
+  
+  // Trigger transactional order confirmation email
+  sendOrderConfirmationEmail(mappedOrder).catch((err) => {
+    console.warn('Order email trigger background notice:', err);
+  });
+
+  return mappedOrder;
+}
+
+export async function sendOrderConfirmationEmail(order: Order): Promise<void> {
+  try {
+    const { error } = await supabase.functions.invoke('send-order-email', {
+      body: {
+        order_id: order.id,
+        email: order.email,
+        customer_name: order.customerName,
+        total: order.total,
+        items: order.items.map((i) => ({
+          name: i.product.name,
+          quantity: i.quantity,
+          price: i.product.price,
+          variant: i.selectedVariant,
+        })),
+        address: order.address,
+      },
+    });
+
+    if (error) {
+      console.warn('Order confirmation email service notice (requires Resend/SMTP key in Edge Function):', error.message);
+    }
+  } catch (err: any) {
+    console.warn('Order confirmation email invocation notice:', err?.message || err);
+  }
 }
 
 export async function updateOrderStatus(id: string, status: Order['status']): Promise<void> {

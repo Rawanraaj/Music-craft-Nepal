@@ -180,6 +180,28 @@ export default function Admin() {
     hours: { en: '', ne: '' },
   });
 
+  const [cmsBusinessInfo, setCmsBusinessInfo] = useState({
+    registered_business_name: 'Music Craft Nepal Pvt. Ltd.',
+    registration_number: 'To be updated',
+    entity_type: 'Private Limited',
+    pan_vat_number: 'To be updated',
+    docscp_listing_number: 'To be updated',
+    head_office_address: 'Bhotahity, Kathmandu, Nepal',
+    branch_addresses: 'To be updated',
+  });
+
+  const [cmsDeliveryDisclosure, setCmsDeliveryDisclosure] = useState({
+    en: 'Currently, we only deliver within Kathmandu Valley. Delivery outside the valley is not yet available — we\'re working on expanding this soon.',
+    ne: 'हाल हामी काठमाडौँ उपत्यकाभित्र मात्र डेलिभरी गर्छौँ। उपत्यकाबाहिर डेलिभरी अझै उपलब्ध छैन।',
+  });
+
+  const [cmsGrievanceOfficer, setCmsGrievanceOfficer] = useState({
+    officer_name: 'Grievance Officer (To be updated)',
+    officer_phone: '+977-9800000000',
+    officer_email: 'support@musiccraftnepal.com',
+    resolution_timeline_note: "We aim to resolve complaints within 15 days as per Nepal's E-Commerce regulations.",
+  });
+
   const [settingsLoading, setSettingsLoading] = useState(false);
 
   // Multi Promo Banner States
@@ -362,12 +384,15 @@ export default function Admin() {
 
   const loadCmsData = async () => {
     try {
-      const [slides, aboutCopy, aboutImg, contact, promoSectionToggle] = await Promise.all([
+      const [slides, aboutCopy, aboutImg, contact, promoSectionToggle, bizInfo, deliveryDisc, grievanceOff] = await Promise.all([
         fetchSiteContent('hero_slides'),
         fetchSiteContent('about_us_copy'),
         fetchSiteContent('about_story_image'),
         fetchSiteContent('contact_details'),
         fetchSiteContent('promo_section_enabled'),
+        fetchSiteContent('business_info'),
+        fetchSiteContent('delivery_availability_disclosure'),
+        fetchSiteContent('grievance_officer'),
       ]);
       if (promoSectionToggle !== null && promoSectionToggle !== undefined) {
         setPromoSectionEnabled(promoSectionToggle !== false);
@@ -397,6 +422,9 @@ export default function Admin() {
           hours: typeof contact.hours === 'object' ? contact.hours : { en: contact.hours || '', ne: '' },
         });
       }
+      if (bizInfo) setCmsBusinessInfo((prev) => ({ ...prev, ...bizInfo }));
+      if (deliveryDisc) setCmsDeliveryDisclosure((prev) => ({ ...prev, ...deliveryDisc }));
+      if (grievanceOff) setCmsGrievanceOfficer((prev) => ({ ...prev, ...grievanceOff }));
 
     } catch (err) {
       console.error('Error loading CMS data:', err);
@@ -870,6 +898,9 @@ export default function Admin() {
         updateSiteContent('about_us_copy', cmsAboutCopy),
         updateSiteContent('about_story_image', cmsAboutImage),
         updateSiteContent('contact_details', cmsContactDetails),
+        updateSiteContent('business_info', cmsBusinessInfo),
+        updateSiteContent('delivery_availability_disclosure', cmsDeliveryDisclosure),
+        updateSiteContent('grievance_officer', cmsGrievanceOfficer),
       ]);
       showToast('CMS settings saved successfully!', 'success');
     } catch (err) {
@@ -2049,6 +2080,126 @@ export default function Admin() {
                           )}
                         </tbody>
                       </table>
+                    </div>
+                  </div>
+
+                  {/* Business Identification & Legal Info (Nepal E-Commerce Act) */}
+                  <div className="bg-white rounded-xl border border-mcn-gray-200 p-6 space-y-4">
+                    <h2 className="text-lg font-extrabold text-mcn-charcoal">Nepal E-Commerce Act: Business Identification</h2>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Registered Business Name</label>
+                        <input
+                          type="text"
+                          value={cmsBusinessInfo.registered_business_name}
+                          onChange={(e) => setCmsBusinessInfo((prev) => ({ ...prev, registered_business_name: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Entity Type</label>
+                        <input
+                          type="text"
+                          value={cmsBusinessInfo.entity_type}
+                          onChange={(e) => setCmsBusinessInfo((prev) => ({ ...prev, entity_type: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Registration Number</label>
+                        <input
+                          type="text"
+                          value={cmsBusinessInfo.registration_number}
+                          onChange={(e) => setCmsBusinessInfo((prev) => ({ ...prev, registration_number: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">PAN / VAT Number</label>
+                        <input
+                          type="text"
+                          value={cmsBusinessInfo.pan_vat_number}
+                          onChange={(e) => setCmsBusinessInfo((prev) => ({ ...prev, pan_vat_number: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">DoCSCP Listing Number</label>
+                        <input
+                          type="text"
+                          value={cmsBusinessInfo.docscp_listing_number}
+                          onChange={(e) => setCmsBusinessInfo((prev) => ({ ...prev, docscp_listing_number: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Head Office Address</label>
+                        <input
+                          type="text"
+                          value={cmsBusinessInfo.head_office_address}
+                          onChange={(e) => setCmsBusinessInfo((prev) => ({ ...prev, head_office_address: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Delivery Availability Disclosure */}
+                  <div className="bg-white rounded-xl border border-mcn-gray-200 p-6 space-y-4">
+                    <h2 className="text-lg font-extrabold text-mcn-charcoal">Delivery Availability Disclosure</h2>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">English Disclosure</label>
+                        <textarea
+                          rows={3}
+                          value={cmsDeliveryDisclosure.en}
+                          onChange={(e) => setCmsDeliveryDisclosure((prev) => ({ ...prev, en: e.target.value }))}
+                          className="w-full p-2.5 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Nepali Disclosure (नेपाली)</label>
+                        <textarea
+                          rows={3}
+                          value={cmsDeliveryDisclosure.ne}
+                          onChange={(e) => setCmsDeliveryDisclosure((prev) => ({ ...prev, ne: e.target.value }))}
+                          className="w-full p-2.5 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Grievance Officer Settings */}
+                  <div className="bg-white rounded-xl border border-mcn-gray-200 p-6 space-y-4">
+                    <h2 className="text-lg font-extrabold text-mcn-charcoal">Grievance Officer (Consumer Complaints)</h2>
+                    <div className="grid sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Officer Name</label>
+                        <input
+                          type="text"
+                          value={cmsGrievanceOfficer.officer_name}
+                          onChange={(e) => setCmsGrievanceOfficer((prev) => ({ ...prev, officer_name: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Officer Phone</label>
+                        <input
+                          type="text"
+                          value={cmsGrievanceOfficer.officer_phone}
+                          onChange={(e) => setCmsGrievanceOfficer((prev) => ({ ...prev, officer_phone: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Officer Email</label>
+                        <input
+                          type="email"
+                          value={cmsGrievanceOfficer.officer_email}
+                          onChange={(e) => setCmsGrievanceOfficer((prev) => ({ ...prev, officer_email: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                        />
+                      </div>
                     </div>
                   </div>
 

@@ -30,6 +30,8 @@ export default function Footer() {
       { label: 'Track Order', path: '/my-orders' },
       { label: 'Shipping Info', path: '/shipping-info' },
       { label: 'Returns & Refunds', path: '/returns-refunds' },
+      { label: 'Terms & Conditions', path: '/terms' },
+      { label: 'Privacy Policy', path: '/privacy' },
     ],
   };
   const [content, setContent] = useState<any>({
@@ -43,11 +45,21 @@ export default function Footer() {
     email: 'hello@musiccraftnepal.com',
   });
 
+  const [businessInfo, setBusinessInfo] = useState<any>({
+    registered_business_name: 'Music Craft Nepal Pvt. Ltd.',
+    registration_number: 'To be updated',
+    entity_type: 'Private Limited',
+    pan_vat_number: 'To be updated',
+    docscp_listing_number: 'To be updated',
+    head_office_address: 'Bhotahity, Kathmandu, Nepal',
+    branch_addresses: 'To be updated',
+  });
+
   useEffect(() => {
     fetchSiteContent('footer_content')
       .then((data) => {
         if (data) {
-          setContent((prev) => ({ ...prev, ...data }));
+          setContent((prev: any) => ({ ...prev, ...data }));
         }
       })
       .catch((err) => console.error('Error fetching footer content:', err));
@@ -55,10 +67,18 @@ export default function Footer() {
     fetchSiteContent('contact_details')
       .then((data) => {
         if (data) {
-          setContent((prev) => ({ ...prev, ...data }));
+          setContent((prev: any) => ({ ...prev, ...data }));
         }
       })
       .catch((err) => console.error('Error fetching contact details:', err));
+
+    fetchSiteContent('business_info')
+      .then((data) => {
+        if (data) {
+          setBusinessInfo((prev: any) => ({ ...prev, ...data }));
+        }
+      })
+      .catch((err) => console.error('Error fetching business info:', err));
   }, []);
 
   return (
@@ -161,6 +181,43 @@ export default function Footer() {
                 <a href={`mailto:${content.email}`} className="hover:text-white transition-colors">{content.email}</a>
               </li>
             </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Business Identification & Legal Block */}
+      <div className="border-t border-white/10 bg-white/5 py-6">
+        <div className="max-w-7xl mx-auto px-4">
+          <h5 className="text-xs font-bold text-mcn-mint uppercase tracking-wider mb-2">
+            Business Identification & E-Commerce Disclosure
+          </h5>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-mcn-gray-400">
+            <div>
+              <span className="block text-white font-semibold">Registered Entity:</span>
+              <span>{tCms(businessInfo.registered_business_name)} ({tCms(businessInfo.entity_type)})</span>
+            </div>
+            <div>
+              <span className="block text-white font-semibold">Registration #:</span>
+              <span>{tCms(businessInfo.registration_number)}</span>
+            </div>
+            <div>
+              <span className="block text-white font-semibold">PAN / VAT #:</span>
+              <span>{tCms(businessInfo.pan_vat_number)}</span>
+            </div>
+            <div>
+              <span className="block text-white font-semibold">DoCSCP Listing #:</span>
+              <span>{tCms(businessInfo.docscp_listing_number)}</span>
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-white/5 flex flex-col md:flex-row justify-between gap-2 text-[11px] text-mcn-gray-400">
+            <div>
+              <span className="font-semibold text-white">Head Office: </span>
+              {tCms(businessInfo.head_office_address)}
+            </div>
+            <div>
+              <span className="font-semibold text-white">Delivery Scoping: </span>
+              Currently delivering exclusively within Kathmandu Valley, Nepal.
+            </div>
           </div>
         </div>
       </div>

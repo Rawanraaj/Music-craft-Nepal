@@ -399,6 +399,26 @@ export default function Checkout() {
                   Rs. {grandTotal.toLocaleString()}
                 </span>
               </div>
+
+              {/* Delivery Disclosure & Timeline (Nepal E-Commerce Compliance) */}
+              <div className="mb-4 p-3.5 bg-mcn-blue/5 border border-mcn-blue/20 rounded-xl text-xs space-y-1.5">
+                <div className="flex items-center justify-between font-bold text-mcn-charcoal">
+                  <span className="flex items-center gap-1 text-mcn-blue font-extrabold">
+                    <Truck className="w-3.5 h-3.5" /> Delivery Coverage:
+                  </span>
+                  <span className="text-mcn-blue font-extrabold">Kathmandu Valley Only</span>
+                </div>
+                <div className="flex items-center justify-between text-mcn-gray-600">
+                  <span>Delivery Cost:</span>
+                  <span className="font-bold text-mcn-charcoal">
+                    {shipping === 0 ? 'FREE (Orders >= Rs. 5,000)' : `Rs. ${shipping}`}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-mcn-gray-600">
+                  <span>Estimated Delivery:</span>
+                  <span className="font-bold text-mcn-charcoal">2-4 business days</span>
+                </div>
+              </div>
               <button
                 type="submit"
                 disabled={loading}
