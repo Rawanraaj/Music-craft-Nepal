@@ -315,6 +315,8 @@ export async function sendOrderConfirmationEmail(order: Order): Promise<void> {
           variant: i.selectedVariant,
         })),
         address: order.address,
+        payment_method: order.paymentMethod,
+        phone: order.phone,
       },
     });
 
