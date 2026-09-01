@@ -202,6 +202,11 @@ export default function Admin() {
     resolution_timeline_note: "We aim to resolve complaints within 15 days as per Nepal's E-Commerce regulations.",
   });
 
+  const [cmsReturnPickupDisclosure, setCmsReturnPickupDisclosure] = useState({
+    en: "At this time, we are unable to arrange pickup for returns. If your return is approved, you'll need to bring the item to our shop location. We apologize for the inconvenience and are working to add pickup service soon.",
+    ne: "हाल हामी फिर्ताका लागि पिकअप मिलाउन असमर्थ छौँ। यदि तपाईंको फिर्ता स्वीकृत भयो भने, तपाईंले सामान हाम्रो पसलमा आफैं ल्याउनुपर्नेछ।",
+  });
+
   const [settingsLoading, setSettingsLoading] = useState(false);
 
   // Multi Promo Banner States
@@ -384,7 +389,7 @@ export default function Admin() {
 
   const loadCmsData = async () => {
     try {
-      const [slides, aboutCopy, aboutImg, contact, promoSectionToggle, bizInfo, deliveryDisc, grievanceOff] = await Promise.all([
+      const [slides, aboutCopy, aboutImg, contact, promoSectionToggle, bizInfo, deliveryDisc, grievanceOff, returnPickDisc] = await Promise.all([
         fetchSiteContent('hero_slides'),
         fetchSiteContent('about_us_copy'),
         fetchSiteContent('about_story_image'),
@@ -393,6 +398,7 @@ export default function Admin() {
         fetchSiteContent('business_info'),
         fetchSiteContent('delivery_availability_disclosure'),
         fetchSiteContent('grievance_officer'),
+        fetchSiteContent('return_pickup_disclosure'),
       ]);
       if (promoSectionToggle !== null && promoSectionToggle !== undefined) {
         setPromoSectionEnabled(promoSectionToggle !== false);
@@ -425,6 +431,7 @@ export default function Admin() {
       if (bizInfo) setCmsBusinessInfo((prev) => ({ ...prev, ...bizInfo }));
       if (deliveryDisc) setCmsDeliveryDisclosure((prev) => ({ ...prev, ...deliveryDisc }));
       if (grievanceOff) setCmsGrievanceOfficer((prev) => ({ ...prev, ...grievanceOff }));
+      if (returnPickDisc) setCmsReturnPickupDisclosure((prev) => ({ ...prev, ...returnPickDisc }));
 
     } catch (err) {
       console.error('Error loading CMS data:', err);
@@ -901,6 +908,7 @@ export default function Admin() {
         updateSiteContent('business_info', cmsBusinessInfo),
         updateSiteContent('delivery_availability_disclosure', cmsDeliveryDisclosure),
         updateSiteContent('grievance_officer', cmsGrievanceOfficer),
+        updateSiteContent('return_pickup_disclosure', cmsReturnPickupDisclosure),
       ]);
       showToast('CMS settings saved successfully!', 'success');
     } catch (err) {
@@ -2163,6 +2171,31 @@ export default function Admin() {
                           rows={3}
                           value={cmsDeliveryDisclosure.ne}
                           onChange={(e) => setCmsDeliveryDisclosure((prev) => ({ ...prev, ne: e.target.value }))}
+                          className="w-full p-2.5 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Return Pickup Policy Disclosure */}
+                  <div className="bg-white rounded-xl border border-mcn-gray-200 p-6 space-y-4">
+                    <h2 className="text-lg font-extrabold text-mcn-charcoal">Return Pickup Policy Disclosure (Shop In-Person Return)</h2>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">English Disclosure</label>
+                        <textarea
+                          rows={3}
+                          value={cmsReturnPickupDisclosure.en}
+                          onChange={(e) => setCmsReturnPickupDisclosure((prev) => ({ ...prev, en: e.target.value }))}
+                          className="w-full p-2.5 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Nepali Disclosure (नेपाली)</label>
+                        <textarea
+                          rows={3}
+                          value={cmsReturnPickupDisclosure.ne}
+                          onChange={(e) => setCmsReturnPickupDisclosure((prev) => ({ ...prev, ne: e.target.value }))}
                           className="w-full p-2.5 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
                         />
                       </div>

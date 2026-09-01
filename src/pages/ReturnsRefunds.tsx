@@ -59,6 +59,15 @@ export default function ReturnsRefunds() {
           </div>
         </section>
 
+        {/* Return Pickup Notice */}
+        <section className="bg-blue-50 border border-blue-200 rounded-2xl p-5 flex items-start gap-3.5">
+          <RefreshCw className="w-5 h-5 text-mcn-blue shrink-0 mt-0.5" />
+          <div className="text-xs md:text-sm text-blue-900 leading-relaxed font-semibold">
+            <span className="font-extrabold text-mcn-blue block mb-0.5">Return Process Note:</span>
+            At this time, we are unable to arrange pickup for returns. If your return is approved, you'll need to bring the item to our shop location (see Contact page for address). We apologize for the inconvenience and are working to add pickup service soon.
+          </div>
+        </section>
+
         {/* Return Period Banner */}
         <section className="bg-mcn-blue/10 border border-mcn-blue/30 rounded-2xl p-6 md:p-8 flex items-center gap-6">
           <div className="w-14 h-14 rounded-2xl bg-mcn-blue text-white flex items-center justify-center shrink-0 shadow-md">

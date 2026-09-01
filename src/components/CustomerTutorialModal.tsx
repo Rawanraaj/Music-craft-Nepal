@@ -11,6 +11,7 @@ import {
   Truck,
   ShieldCheck,
   MessageSquare,
+  RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -139,6 +140,14 @@ export default function CustomerTutorialModal() {
                 <Truck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold text-amber-950">Delivery Availability:</span> Currently, we only deliver within Kathmandu Valley. Delivery outside the valley is not yet available — we're working on expanding this soon.
+                </div>
+              </div>
+
+              {/* Return Pickup Requirement Note */}
+              <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 leading-relaxed flex items-start gap-2.5">
+                <RefreshCw className="w-4 h-4 text-mcn-blue shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-mcn-blue">Please note:</span> While we deliver your order to you, returns currently require you to bring the item to our shop in person, as we don't yet have a pickup rider service. We're working on adding this soon.
                 </div>
               </div>
             </div>

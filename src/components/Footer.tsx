@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Music, Mail, Phone, MapPin, Facebook, Instagram, Youtube, Twitter } from 'lucide-react';
+import { Music, Mail, Phone, MapPin, Facebook, Instagram, ShoppingBag, MessageCircle } from 'lucide-react';
 import { fetchSiteContent } from '../lib/api';
 
 import { useLanguage } from '../context/LanguageContext';
@@ -36,10 +36,11 @@ export default function Footer() {
   };
   const [content, setContent] = useState<any>({
     aboutText: 'Handcrafted Nepali musical instruments made by master artisans. Delivering the sound of the Himalayas nationwide.',
-    facebookUrl: '#',
-    instagramUrl: '#',
-    youtubeUrl: '#',
-    twitterUrl: '#',
+    facebookUrl: 'https://www.facebook.com/musiccraftnepal',
+    instagramUrl: 'https://www.instagram.com/musiccraftnepal/',
+    tiktokUrl: 'https://www.tiktok.com/@musiccraftnepal',
+    darazUrl: 'https://www.daraz.com.np/shop/music-craft-nepal/?spm=a2a0e.pdp_revamp.seller.1.2d6d7028RV4RpH&itemId=144586405&channelSource=pdp',
+    whatsappUrl: 'https://wa.me/9779813176390',
     address: 'Bhotahity, Kathmandu, Nepal',
     phone: '01-4123456',
     email: 'hello@musiccraftnepal.com',
@@ -129,18 +130,67 @@ export default function Footer() {
             <p className="text-sm text-mcn-gray-400 leading-relaxed mb-4">
               {tCms(content.aboutText)}
             </p>
-            <div className="flex items-center gap-3">
-              <a href={content.facebookUrl} target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              {/* Facebook */}
+              <a
+                href={content.facebookUrl || 'https://www.facebook.com/musiccraftnepal'}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Facebook"
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors text-white"
+                title="Facebook"
+              >
                 <Facebook className="w-4 h-4" />
               </a>
-              <a href={content.instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors">
+
+              {/* Instagram */}
+              <a
+                href={content.instagramUrl || 'https://www.instagram.com/musiccraftnepal/'}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Instagram"
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors text-white"
+                title="Instagram"
+              >
                 <Instagram className="w-4 h-4" />
               </a>
-              <a href={content.youtubeUrl} target="_blank" rel="noopener noreferrer" aria-label="YouTube" className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors">
-                <Youtube className="w-4 h-4" />
+
+              {/* TikTok */}
+              <a
+                href={content.tiktokUrl || 'https://www.tiktok.com/@musiccraftnepal'}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="TikTok"
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors text-white"
+                title="TikTok"
+              >
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                  <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 1 1-5.2-1.74 2.89 2.89 0 0 1 2.31-1.42V8.9a6.34 6.34 0 0 0-5.61 6.31 6.35 6.35 0 1 0 11.95-3.1v-5.2a8.21 8.21 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1.0-1.34z"/>
+                </svg>
               </a>
-              <a href={content.twitterUrl} target="_blank" rel="noopener noreferrer" aria-label="Twitter" className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors">
-                <Twitter className="w-4 h-4" />
+
+              {/* Daraz Store */}
+              <a
+                href={content.darazUrl || 'https://www.daraz.com.np/shop/music-craft-nepal/?spm=a2a0e.pdp_revamp.seller.1.2d6d7028RV4RpH&itemId=144586405&channelSource=pdp'}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Daraz Store"
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors text-white"
+                title="Daraz Official Store"
+              >
+                <ShoppingBag className="w-4 h-4" />
+              </a>
+
+              {/* WhatsApp Direct Chat */}
+              <a
+                href={content.whatsappUrl || 'https://wa.me/9779813176390'}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="WhatsApp Direct Chat"
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-emerald-600 flex items-center justify-center transition-colors text-white"
+                title="WhatsApp Direct Chat"
+              >
+                <MessageCircle className="w-4 h-4" />
               </a>
             </div>
           </div>
