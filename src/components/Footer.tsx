@@ -137,7 +137,7 @@ export default function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Facebook"
-                className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors text-white"
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-[#1877F2] flex items-center justify-center text-white transition-all duration-300 ease-out transform hover:scale-110 shadow-sm hover:shadow-lg hover:shadow-[#1877F2]/30"
                 title="Facebook"
               >
                 <Facebook className="w-4 h-4" />
@@ -149,7 +149,7 @@ export default function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Instagram"
-                className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors text-white"
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-gradient-to-tr hover:from-[#F58529] hover:via-[#DD2A7B] hover:to-[#8134AF] flex items-center justify-center text-white transition-all duration-300 ease-out transform hover:scale-110 shadow-sm hover:shadow-lg hover:shadow-[#DD2A7B]/30"
                 title="Instagram"
               >
                 <Instagram className="w-4 h-4" />
@@ -161,7 +161,7 @@ export default function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="TikTok"
-                className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors text-white"
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-black hover:shadow-[0_0_12px_rgba(37,244,238,0.7),0_0_12px_rgba(254,44,85,0.7)] hover:border hover:border-[#25F4EE]/60 flex items-center justify-center text-white transition-all duration-300 ease-out transform hover:scale-110"
                 title="TikTok"
               >
                 <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
@@ -175,7 +175,7 @@ export default function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Daraz Store"
-                className="w-9 h-9 rounded-full bg-white/10 hover:bg-mcn-blue flex items-center justify-center transition-colors text-white"
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-[#F85606] flex items-center justify-center text-white transition-all duration-300 ease-out transform hover:scale-110 shadow-sm hover:shadow-lg hover:shadow-[#F85606]/30"
                 title="Daraz Official Store"
               >
                 <ShoppingBag className="w-4 h-4" />
@@ -187,7 +187,7 @@ export default function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="WhatsApp Direct Chat"
-                className="w-9 h-9 rounded-full bg-white/10 hover:bg-emerald-600 flex items-center justify-center transition-colors text-white"
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-[#25D366] flex items-center justify-center text-white transition-all duration-300 ease-out transform hover:scale-110 shadow-sm hover:shadow-lg hover:shadow-[#25D366]/30"
                 title="WhatsApp Direct Chat"
               >
                 <MessageCircle className="w-4 h-4" />
