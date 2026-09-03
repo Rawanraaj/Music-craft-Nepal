@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { SlidersHorizontal, X, ChevronDown } from 'lucide-react';
+import { useSearchParams, Link } from 'react-router-dom';
+import { SlidersHorizontal, X, ChevronDown, SearchX } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 import { fetchProducts } from '../lib/api';
 import type { Product } from '../types';
@@ -364,14 +364,35 @@ export default function Shop() {
           <div className="flex-1">
             {filteredProducts.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
-                <p className="text-lg font-bold text-mcn-charcoal mb-2">No products match your criteria</p>
-                <p className="text-sm text-mcn-gray-500 mb-6">Try relaxing your price filters or checking other categories.</p>
-                <button
-                  onClick={clearFilters}
-                  className="px-6 py-3 bg-mcn-blue text-white font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors"
-                >
-                  Clear Filters
-                </button>
+                <div className="w-16 h-16 rounded-2xl bg-mcn-gray-100 flex items-center justify-center mb-5">
+                  <SearchX className="w-8 h-8 text-mcn-gray-400" />
+                </div>
+                <p className="text-xl font-extrabold text-mcn-charcoal mb-2">
+                  {queryParam
+                    ? `No products found for "${queryParam}"`
+                    : categoryParam
+                    ? `No products found in "${categoryParam}"`
+                    : 'No products match your criteria'}
+                </p>
+                <p className="text-sm text-mcn-gray-500 mb-6 max-w-md">
+                  {queryParam || categoryParam
+                    ? 'Try a different search term or browse our categories instead.'
+                    : 'Try relaxing your price filters or checking other categories.'}
+                </p>
+                <div className="flex items-center gap-3 flex-wrap justify-center">
+                  <button
+                    onClick={clearFilters}
+                    className="px-6 py-3 bg-mcn-blue text-white font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors"
+                  >
+                    Clear Filters
+                  </button>
+                  <Link
+                    to="/shop"
+                    className="px-6 py-3 border-2 border-mcn-gray-300 text-mcn-charcoal font-bold rounded-lg hover:bg-mcn-gray-50 transition-colors"
+                  >
+                    Browse All Products
+                  </Link>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">

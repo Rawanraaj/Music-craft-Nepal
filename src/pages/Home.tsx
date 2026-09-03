@@ -44,9 +44,9 @@ const HERO_SLIDES_DEFAULT = [
 ];
 
 const TRENDING_CATEGORIES = [
-  { name: 'Madal', icon: Drum, path: '/shop?q=madal', image: 'https://images.unsplash.com/photo-1530917203633-106d4a1a0967?auto=format&fit=crop&w=400&q=80' },
-  { name: 'Sarangi', icon: Music, path: '/shop?q=sarangi', image: 'https://images.unsplash.com/photo-1646765444015-5881f0fab3e8?auto=format&fit=crop&w=400&q=80' },
-  { name: 'Guitars', icon: Guitar, path: '/shop?category=Guitars', image: 'https://images.unsplash.com/photo-1514649923863-ceaf75b7ec00?auto=format&fit=crop&w=400&q=80' },
+  { name: 'Madal', icon: Drum, path: '/shop?q=madal', image: 'https://sgigsktyeyhxjofsaxqs.supabase.co/storage/v1/object/public/product-images/products/medium-madal-16-18-inches-length-traditional-nepali-musical-instrument-handcraft/medium-madal-16-18-inches-length-traditional-nepali-musical-instrument-handcraft-1.webp' },
+  { name: 'Sarangi', icon: Music, path: '/shop?q=sarangi', image: 'https://sgigsktyeyhxjofsaxqs.supabase.co/storage/v1/object/public/product-images/products/sarangi-professional-quality-with-light-natural-wood-colour-25-inches-length/sarangi-professional-quality-with-light-natural-wood-colour-25-inches-length-1.webp' },
+  { name: 'Guitars', icon: Guitar, path: '/shop?q=guitar', image: 'https://images.unsplash.com/photo-1514649923863-ceaf75b7ec00?auto=format&fit=crop&w=400&q=80' },
   { name: 'Flutes', icon: Wind, path: '/shop?q=flute', image: 'https://images.unsplash.com/photo-1672578249566-3f4b6d564aa2?auto=format&fit=crop&w=400&q=80' },
   { name: 'Ukuleles', icon: Music, path: '/shop?q=ukulele', image: 'https://images.unsplash.com/photo-1707699164633-0e584b2da329?auto=format&fit=crop&w=400&q=80' },
   { name: 'Tabla', icon: Drum, path: '/shop?q=tabla', image: 'https://images.unsplash.com/photo-1721179389414-8c3f507e2bc2?auto=format&fit=crop&w=400&q=80' },
