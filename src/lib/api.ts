@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Product, Order, WholesaleInquiry, Review, Article, PromoBanner } from '../types';
+import type { Product, Order, WholesaleInquiry, Review, Article, PromoBanner, ReturnRequest, ReturnReason, ReturnStatus } from '../types';
 
 // Helper to map DB Product to Frontend Product
 export function mapDbProduct(p: any): Product {
@@ -1070,6 +1070,157 @@ export async function fetchUnreadMessageCount(userId: string, isCustomer: boolea
 
     return count || 0;
   }
+}
+
+// Map DB Return Request to Frontend ReturnRequest
+function mapDbReturnRequest(data: any): ReturnRequest {
+  return {
+    id: data.id,
+    order_id: data.order_id,
+    customer_id: data.customer_id,
+    reason: data.reason,
+    description: data.description,
+    image_url: data.image_url,
+    status: data.status,
+    admin_notes: data.admin_notes,
+    refund_method: data.refund_method,
+    created_at: data.created_at,
+    updated_at: data.updated_at,
+    customer_name: data.orders?.customer_name || data.profiles?.full_name || 'Customer',
+    customer_email: data.orders?.email || data.profiles?.email || '',
+  };
+}
+
+export async function fetchUserReturnRequests(userId: string): Promise<ReturnRequest[]> {
+  const { data, error } = await supabase
+    .from('return_requests')
+    .select('*, orders(customer_name, email), profiles(full_name, email)')
+    .eq('customer_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching user return requests:', error);
+    // Return empty array gracefully if table is not yet created
+    if (error.code === '42P01' || error.message.includes('find the table')) return [];
+    throw error;
+  }
+  return (data || []).map(mapDbReturnRequest);
+}
+
+export async function fetchAllReturnRequests(): Promise<ReturnRequest[]> {
+  const { data, error } = await supabase
+    .from('return_requests')
+    .select('*, orders(customer_name, email), profiles(full_name, email)')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching all return requests:', error);
+    if (error.code === '42P01' || error.message.includes('find the table')) return [];
+    throw error;
+  }
+  return (data || []).map(mapDbReturnRequest);
+}
+
+export async function createReturnRequest(requestData: {
+  order_id: string;
+  customer_id: string;
+  reason: ReturnReason;
+  description: string;
+  image_url?: string | null;
+}): Promise<ReturnRequest> {
+  const { data, error } = await supabase
+    .from('return_requests')
+    .insert([{
+      order_id: requestData.order_id,
+      customer_id: requestData.customer_id,
+      reason: requestData.reason,
+      description: requestData.description,
+      image_url: requestData.image_url || null,
+      status: 'Pending',
+    }])
+    .select('*, orders(customer_name, email), profiles(full_name, email)')
+    .single();
+
+  if (error) throw error;
+
+  // Auto-create or reuse conversation for this order return
+  try {
+    await startConversation({
+      customerId: requestData.customer_id,
+      subject: `Return Request - Order #${requestData.order_id.slice(0, 8)}`,
+      orderId: requestData.order_id,
+      initialMessage: `[RETURN REQUEST SUBMITTED]\nReason: ${requestData.reason}\nDetails: ${requestData.description}${requestData.image_url ? `\nPhoto Evidence: ${requestData.image_url}` : ''}`,
+    });
+  } catch (convErr) {
+    console.warn('Could not auto-send message for return request:', convErr);
+  }
+
+  return mapDbReturnRequest(data);
+}
+
+export async function updateReturnRequestStatus(
+  id: string,
+  status: ReturnStatus,
+  extra?: { admin_notes?: string | null; refund_method?: string | null; customerId?: string; orderId?: string }
+): Promise<void> {
+  const updates: any = {
+    status,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (extra?.admin_notes !== undefined) updates.admin_notes = extra.admin_notes;
+  if (extra?.refund_method !== undefined) updates.refund_method = extra.refund_method;
+
+  const { data: requestData, error } = await supabase
+    .from('return_requests')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  // Post update message to conversation if available
+  const customerId = extra?.customerId || requestData?.customer_id;
+  const orderId = extra?.orderId || requestData?.order_id;
+  if (customerId && orderId) {
+    try {
+      const conv = await startConversation({
+        customerId,
+        subject: `Return Request - Order #${orderId.slice(0, 8)}`,
+        orderId,
+        initialMessage: `[RETURN STATUS UPDATE] Return request status updated to: ${status}${extra?.admin_notes ? `\nNotes: ${extra.admin_notes}` : ''}${extra?.refund_method ? `\nRefund Method: ${extra.refund_method}` : ''}`,
+      });
+
+      // Send status update message if conversation already existed
+      if (conv) {
+        await sendMessage({
+          conversationId: conv.id,
+          senderType: 'admin',
+          body: `[RETURN STATUS UPDATE] Status updated to: ${status}${extra?.refund_method ? ` (Refund Method: ${extra.refund_method})` : ''}${extra?.admin_notes ? `\nNotes: ${extra.admin_notes}` : ''}`,
+        });
+      }
+    } catch (msgErr) {
+      console.warn('Could not notify customer in conversation:', msgErr);
+    }
+  }
+}
+
+export async function uploadReturnEvidenceImage(file: File): Promise<string> {
+  const fileExt = file.name.split('.').pop();
+  const fileName = `returns/${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('product-images')
+    .upload(fileName, file);
+
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage
+    .from('product-images')
+    .getPublicUrl(fileName);
+
+  return data.publicUrl;
 }
 
 

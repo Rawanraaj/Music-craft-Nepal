@@ -26,6 +26,11 @@ import {
   Send,
   CheckCheck,
   Bell,
+  RotateCcw,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Eye,
 } from 'lucide-react';
 import {
   registerPushNotifications,
@@ -75,12 +80,14 @@ import {
   sendMessage as apiSendMessage,
   markMessagesAsRead,
   fetchUnreadMessageCount,
+  fetchAllReturnRequests,
+  updateReturnRequestStatus,
 } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { CATEGORIES } from '../types';
-import type { Product, Order, WholesaleInquiry, Article, PromoBanner, Conversation, Message } from '../types';
+import type { Product, Order, WholesaleInquiry, Article, PromoBanner, Conversation, Message, ReturnRequest, ReturnReason, ReturnStatus } from '../types';
 
-type AdminTab = 'overview' | 'products' | 'orders' | 'inquiries' | 'messages' | 'coupons' | 'articles' | 'settings';
+type AdminTab = 'overview' | 'products' | 'orders' | 'returns' | 'inquiries' | 'messages' | 'coupons' | 'articles' | 'settings';
 
 const STATUS_COLORS: Record<string, string> = {
   // Orders
@@ -94,6 +101,13 @@ const STATUS_COLORS: Record<string, string> = {
   new: 'bg-mcn-mint/20 text-mcn-mint-dark',
   contacted: 'bg-mcn-blue-light/10 text-mcn-blue',
   closed: 'bg-gray-100 text-gray-600',
+  // Return Requests
+  Pending: 'bg-amber-100 text-amber-800',
+  Approved: 'bg-blue-100 text-blue-800',
+  'Awaiting Item Return': 'bg-blue-100 text-blue-800',
+  'Item Received': 'bg-indigo-100 text-indigo-800',
+  Refunded: 'bg-emerald-100 text-emerald-800',
+  Rejected: 'bg-red-100 text-red-800',
 };
 
 export default function Admin() {
@@ -114,10 +128,21 @@ export default function Admin() {
   // Live Data States
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [returnRequests, setReturnRequests] = useState<ReturnRequest[]>([]);
   const [inquiries, setInquiries] = useState<WholesaleInquiry[]>([]);
   const [coupons, setCoupons] = useState<any[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+
+  // Return Requests Admin State
+  const [returnStatusFilter, setReturnStatusFilter] = useState<string>('All');
+  const [returnSearch, setReturnSearch] = useState('');
+  const [selectedReturnDetail, setSelectedReturnDetail] = useState<ReturnRequest | null>(null);
+  const [rejectModalReturn, setRejectModalReturn] = useState<ReturnRequest | null>(null);
+  const [rejectReasonNotes, setRejectReasonNotes] = useState('');
+  const [refundModalReturn, setRefundModalReturn] = useState<ReturnRequest | null>(null);
+  const [refundMethod, setRefundMethod] = useState<string>('Cash');
+  const [refundNotes, setRefundNotes] = useState('');
 
   // Product CRUD States
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -366,13 +391,14 @@ export default function Admin() {
   const loadAllData = async () => {
     setLoadingData(true);
     try {
-      const [prodData, ordData, inqData, coupData, artData, bannerData] = await Promise.all([
+      const [prodData, ordData, inqData, coupData, artData, bannerData, returnsData] = await Promise.all([
         fetchProducts(),
         fetchOrders(),
         fetchInquiries(),
         fetchCoupons(),
         fetchArticles(),
         fetchAllPromoBanners(),
+        fetchAllReturnRequests().catch(() => []),
       ]);
       setProducts(prodData);
       setOrders(ordData);
@@ -380,6 +406,7 @@ export default function Admin() {
       setCoupons(coupData);
       setArticles(artData);
       setPromoBanners(bannerData);
+      setReturnRequests(returnsData);
     } catch (err) {
       console.error('Error fetching admin dashboard data:', err);
     } finally {
@@ -521,6 +548,7 @@ export default function Admin() {
     .filter((o) => o.status !== 'Cancelled')
     .reduce((sum, o) => sum + o.total, 0);
   const pendingOrders = orders.filter((o) => o.status === 'Placed' || o.status === 'Confirmed' || o.status === 'Shipped' || o.status === 'Out for Delivery').length;
+  const pendingReturns = returnRequests.filter((r) => r.status === 'Pending').length;
   const newInquiries = inquiries.filter((i) => i.status === 'new').length;
 
   // CSV Exports
@@ -599,6 +627,78 @@ export default function Admin() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const exportReturnsCSV = () => {
+    const headers = ['Request ID', 'Order ID', 'Customer Name', 'Customer Email', 'Reason', 'Description', 'Status', 'Refund Method', 'Admin Notes', 'Date Requested'];
+    const rows = returnRequests.map((r) => [
+      r.id,
+      r.order_id,
+      r.customer_name || '',
+      r.customer_email || '',
+      r.reason,
+      r.description,
+      r.status,
+      r.refund_method || '',
+      r.admin_notes || '',
+      r.created_at,
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' 
+      + [headers.join(','), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `returns_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Return Requests Action Handlers
+  const handleApproveReturn = (req: ReturnRequest) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Approve Return Request',
+      message: `Approve return request for Order #${req.order_id.slice(0, 8)}? Status will change to "Awaiting Item Return" for customer in-store return.`,
+      onConfirm: async () => {
+        try {
+          await updateReturnRequestStatus(req.id, 'Awaiting Item Return', {
+            customerId: req.customer_id,
+            orderId: req.order_id,
+          });
+          showToast('Return request approved! Status set to Awaiting Item Return.', 'success');
+          loadAllData();
+        } catch (err: any) {
+          console.error('Failed to approve return request:', err);
+          showToast(err.message || 'Failed to approve return request.', 'error');
+        } finally {
+          setConfirmModal(null);
+        }
+      },
+    });
+  };
+
+  const handleMarkItemReceived = (req: ReturnRequest) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Confirm Physical Item Received',
+      message: `Confirm that the returned item for Order #${req.order_id.slice(0, 8)} has been physically received and inspected at the Bhotahity store?`,
+      onConfirm: async () => {
+        try {
+          await updateReturnRequestStatus(req.id, 'Item Received', {
+            customerId: req.customer_id,
+            orderId: req.order_id,
+          });
+          showToast('Item marked as received! You can now mark as refunded once payment is settled.', 'success');
+          loadAllData();
+        } catch (err: any) {
+          console.error('Failed to mark item received:', err);
+          showToast(err.message || 'Failed to mark item received.', 'error');
+        } finally {
+          setConfirmModal(null);
+        }
+      },
+    });
   };
 
   // Coupons CRUD Operations
@@ -1105,6 +1205,7 @@ export default function Admin() {
     { id: 'overview' as AdminTab, label: 'Overview', icon: LayoutDashboard },
     { id: 'products' as AdminTab, label: 'Products', icon: Package },
     { id: 'orders' as AdminTab, label: 'Orders', icon: ShoppingCart },
+    { id: 'returns' as AdminTab, label: 'Returns', icon: RotateCcw },
     { id: 'inquiries' as AdminTab, label: 'Wholesale Inquiries', icon: Mail },
     { id: 'messages' as AdminTab, label: 'Messages', icon: MessageSquare },
     { id: 'coupons' as AdminTab, label: 'Coupons', icon: Tag },
@@ -1144,6 +1245,11 @@ export default function Admin() {
             {item.id === 'orders' && pendingOrders > 0 && (
               <span className="ml-auto bg-mcn-red text-white text-xs font-bold px-2 py-0.5 rounded-full">
                 {pendingOrders}
+              </span>
+            )}
+            {item.id === 'returns' && pendingReturns > 0 && (
+              <span className="ml-auto bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                {pendingReturns}
               </span>
             )}
             {item.id === 'inquiries' && newInquiries > 0 && (
@@ -1536,6 +1642,212 @@ export default function Admin() {
                           </td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Returns Section */}
+            {activeTab === 'returns' && (
+              <div className="bg-white rounded-xl border border-mcn-gray-200 overflow-hidden">
+                <div className="p-5 border-b border-mcn-gray-200 flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-base font-extrabold text-mcn-charcoal flex items-center gap-2">
+                      Return & Refund Requests ({returnRequests.length})
+                      {pendingReturns > 0 && (
+                        <span className="bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                          {pendingReturns} Pending
+                        </span>
+                      )}
+                    </h2>
+                    <p className="text-xs text-mcn-gray-500 mt-0.5">Manage customer return requests, physical item receipts, and refunds.</p>
+                  </div>
+                  <button
+                    onClick={exportReturnsCSV}
+                    className="flex items-center gap-2 px-3 py-1.5 border-2 border-mcn-gray-300 text-mcn-charcoal text-xs font-bold rounded-lg hover:bg-mcn-gray-100 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Export CSV
+                  </button>
+                </div>
+
+                {/* Filter Tabs & Search */}
+                <div className="p-4 bg-mcn-gray-50 border-b border-mcn-gray-200 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+                    {['All', 'Pending', 'Awaiting Item Return', 'Item Received', 'Refunded', 'Rejected'].map((statusTab) => {
+                      const count = statusTab === 'All'
+                        ? returnRequests.length
+                        : returnRequests.filter(r => (statusTab === 'Awaiting Item Return' ? (r.status === 'Awaiting Item Return' || r.status === 'Approved') : r.status === statusTab)).length;
+                      const isActive = returnStatusFilter === statusTab;
+
+                      return (
+                        <button
+                          key={statusTab}
+                          onClick={() => setReturnStatusFilter(statusTab)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                            isActive
+                              ? 'bg-mcn-blue text-white shadow-sm'
+                              : 'bg-white text-mcn-gray-600 hover:bg-mcn-gray-100 border border-mcn-gray-200'
+                          }`}
+                        >
+                          {statusTab}
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${isActive ? 'bg-white/20 text-white' : 'bg-mcn-gray-100 text-mcn-gray-600'}`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <input
+                    type="text"
+                    value={returnSearch}
+                    onChange={(e) => setReturnSearch(e.target.value)}
+                    placeholder="Search by customer, order ID, reason..."
+                    className="px-3 py-1.5 border border-mcn-gray-300 rounded-lg text-xs w-full md:w-64 focus:ring-2 focus:ring-mcn-blue outline-none"
+                  />
+                </div>
+
+                {/* Return Requests Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-mcn-gray-50 text-xs font-bold text-mcn-gray-500 uppercase tracking-wide">
+                        <th className="text-left px-5 py-3">Order / Customer</th>
+                        <th className="text-left px-5 py-3">Reason</th>
+                        <th className="text-left px-5 py-3 hidden md:table-cell">Evidence</th>
+                        <th className="text-left px-5 py-3 hidden lg:table-cell">Requested Date</th>
+                        <th className="text-left px-5 py-3">Status</th>
+                        <th className="text-right px-5 py-3">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {returnRequests
+                        .filter((r) => {
+                          if (returnStatusFilter !== 'All') {
+                            if (returnStatusFilter === 'Awaiting Item Return') {
+                              if (r.status !== 'Awaiting Item Return' && r.status !== 'Approved') return false;
+                            } else if (r.status !== returnStatusFilter) {
+                              return false;
+                            }
+                          }
+                          if (!returnSearch.trim()) return true;
+                          const q = returnSearch.toLowerCase();
+                          return (
+                            r.order_id.toLowerCase().includes(q) ||
+                            (r.customer_name && r.customer_name.toLowerCase().includes(q)) ||
+                            (r.customer_email && r.customer_email.toLowerCase().includes(q)) ||
+                            r.reason.toLowerCase().includes(q) ||
+                            r.description.toLowerCase().includes(q)
+                          );
+                        })
+                        .map((req) => {
+                          const isPending = req.status === 'Pending';
+                          const isAwaitingReturn = req.status === 'Awaiting Item Return' || req.status === 'Approved';
+                          const isItemReceived = req.status === 'Item Received';
+                          const isRefunded = req.status === 'Refunded';
+                          const isRejected = req.status === 'Rejected';
+
+                          return (
+                            <tr key={req.id} className="border-t border-mcn-gray-100 hover:bg-mcn-gray-50 transition-colors">
+                              <td className="px-5 py-3">
+                                <p className="text-sm font-bold text-mcn-charcoal">Order #{req.order_id.slice(0, 8)}</p>
+                                <p className="text-xs text-mcn-gray-600 font-semibold">{req.customer_name}</p>
+                                <p className="text-[11px] text-mcn-gray-400">{req.customer_email}</p>
+                              </td>
+                              <td className="px-5 py-3 max-w-xs">
+                                <span className="inline-block font-extrabold text-xs text-mcn-charcoal bg-mcn-gray-100 px-2 py-0.5 rounded mb-1">
+                                  {req.reason}
+                                </span>
+                                <p className="text-xs text-mcn-gray-600 line-clamp-2 italic">{req.description}</p>
+                              </td>
+                              <td className="px-5 py-3 text-xs hidden md:table-cell">
+                                {req.image_url ? (
+                                  <a
+                                    href={req.image_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-mcn-blue font-bold hover:underline flex items-center gap-1"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" /> View Photo
+                                  </a>
+                                ) : (
+                                  <span className="text-mcn-gray-400">No Photo</span>
+                                )}
+                              </td>
+                              <td className="px-5 py-3 text-xs text-mcn-gray-500 hidden lg:table-cell">
+                                {new Date(req.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="px-5 py-3">
+                                <span className={`text-xs font-extrabold px-2.5 py-1 rounded-full ${STATUS_COLORS[req.status] || 'bg-gray-100 text-gray-700'}`}>
+                                  {req.status}
+                                </span>
+                                {isRefunded && req.refund_method && (
+                                  <div className="text-[10px] text-emerald-800 font-bold mt-1">
+                                    Method: {req.refund_method}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-5 py-3 text-right">
+                                <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                  {/* PENDING ACTIONS */}
+                                  {isPending && (
+                                    <>
+                                      <button
+                                        onClick={() => handleApproveReturn(req)}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
+                                      >
+                                        <CheckCircle className="w-3.5 h-3.5" /> Approve
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setRejectModalReturn(req);
+                                          setRejectReasonNotes('');
+                                        }}
+                                        className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
+                                      >
+                                        <XCircle className="w-3.5 h-3.5" /> Reject
+                                      </button>
+                                    </>
+                                  )}
+
+                                  {/* AWAITING RETURN ACTION */}
+                                  {isAwaitingReturn && (
+                                    <button
+                                      onClick={() => handleMarkItemReceived(req)}
+                                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1 rounded-lg transition-colors flex items-center gap-1"
+                                    >
+                                      <CheckCircle className="w-3.5 h-3.5" /> Mark Item Received
+                                    </button>
+                                  )}
+
+                                  {/* ITEM RECEIVED ACTION */}
+                                  {isItemReceived && (
+                                    <button
+                                      onClick={() => {
+                                        setRefundModalReturn(req);
+                                        setRefundMethod('Cash');
+                                        setRefundNotes('');
+                                      }}
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1 rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+                                    >
+                                      <DollarSign className="w-3.5 h-3.5" /> Mark as Refunded
+                                    </button>
+                                  )}
+
+                                  {/* DETAILS MODAL TRIGGER */}
+                                  <button
+                                    onClick={() => setSelectedReturnDetail(req)}
+                                    className="bg-mcn-gray-100 hover:bg-mcn-gray-200 text-mcn-charcoal font-bold text-xs px-2.5 py-1 rounded-lg transition-colors"
+                                  >
+                                    Details
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>
@@ -3391,6 +3703,242 @@ export default function Admin() {
                 </button>
               </footer>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Return Request Detail Modal */}
+      {selectedReturnDetail && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4 border-b border-mcn-gray-200 pb-3">
+              <div>
+                <h3 className="font-extrabold text-base text-mcn-charcoal">Return Request Details</h3>
+                <p className="text-xs text-mcn-gray-500">Order #{selectedReturnDetail.order_id.slice(0, 8)}</p>
+              </div>
+              <button
+                onClick={() => setSelectedReturnDetail(null)}
+                className="text-mcn-gray-400 hover:text-mcn-charcoal p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="flex items-center justify-between bg-mcn-gray-50 p-3 rounded-lg border border-mcn-gray-200">
+                <div>
+                  <span className="text-mcn-gray-500 font-bold block">Current Status</span>
+                  <span className={`inline-block text-xs font-extrabold px-2.5 py-0.5 rounded-full mt-1 ${STATUS_COLORS[selectedReturnDetail.status]}`}>
+                    {selectedReturnDetail.status}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-mcn-gray-500 font-bold block">Date Requested</span>
+                  <span className="text-mcn-charcoal font-semibold">{new Date(selectedReturnDetail.created_at).toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div>
+                <span className="font-extrabold text-mcn-charcoal block mb-1">Customer Info</span>
+                <p className="text-sm font-bold text-mcn-charcoal">{selectedReturnDetail.customer_name}</p>
+                <p className="text-xs text-mcn-gray-500">{selectedReturnDetail.customer_email}</p>
+              </div>
+
+              <div>
+                <span className="font-extrabold text-mcn-charcoal block mb-1">Reason for Return</span>
+                <span className="bg-mcn-gray-100 px-2.5 py-1 rounded font-bold text-mcn-charcoal">
+                  {selectedReturnDetail.reason}
+                </span>
+              </div>
+
+              <div>
+                <span className="font-extrabold text-mcn-charcoal block mb-1">Customer Explanation</span>
+                <p className="p-3 bg-mcn-gray-50 rounded-lg border border-mcn-gray-200 text-mcn-gray-700 italic">
+                  "{selectedReturnDetail.description}"
+                </p>
+              </div>
+
+              {selectedReturnDetail.image_url && (
+                <div>
+                  <span className="font-extrabold text-mcn-charcoal block mb-1">Photo Evidence</span>
+                  <a href={selectedReturnDetail.image_url} target="_blank" rel="noreferrer">
+                    <img
+                      src={selectedReturnDetail.image_url}
+                      alt="Photo evidence"
+                      className="max-h-48 rounded-lg border border-mcn-gray-300 object-cover hover:opacity-90 transition-opacity"
+                    />
+                  </a>
+                </div>
+              )}
+
+              {selectedReturnDetail.refund_method && (
+                <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg">
+                  <span className="font-extrabold text-emerald-900 block">Refund Method</span>
+                  <p className="text-emerald-800 font-bold">{selectedReturnDetail.refund_method}</p>
+                </div>
+              )}
+
+              {selectedReturnDetail.admin_notes && (
+                <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg">
+                  <span className="font-extrabold text-amber-900 block">Admin Notes</span>
+                  <p className="text-amber-800">{selectedReturnDetail.admin_notes}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-mcn-gray-200 mt-4">
+              <button
+                onClick={() => setSelectedReturnDetail(null)}
+                className="px-4 py-2 bg-mcn-blue text-white font-bold rounded-lg text-xs hover:bg-mcn-blue-dark transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Return Modal */}
+      {rejectModalReturn && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+            <div className="flex items-center justify-between mb-4 border-b border-mcn-gray-200 pb-3">
+              <h3 className="font-extrabold text-base text-mcn-red flex items-center gap-2">
+                <XCircle className="w-5 h-5" /> Reject Return Request
+              </h3>
+              <button onClick={() => setRejectModalReturn(null)} className="text-mcn-gray-400 hover:text-mcn-charcoal">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                try {
+                  await updateReturnRequestStatus(rejectModalReturn.id, 'Rejected', {
+                    admin_notes: rejectReasonNotes.trim() || 'Request declined after review.',
+                    customerId: rejectModalReturn.customer_id,
+                    orderId: rejectModalReturn.order_id,
+                  });
+                  showToast('Return request rejected.', 'success');
+                  setRejectModalReturn(null);
+                  loadAllData();
+                } catch (err: any) {
+                  showToast(err.message || 'Failed to reject return request.', 'error');
+                }
+              }}
+              className="space-y-4 text-xs"
+            >
+              <p className="text-mcn-gray-600">
+                Are you sure you want to reject the return request for Order #{rejectModalReturn.order_id.slice(0, 8)}?
+              </p>
+
+              <div>
+                <label className="block font-extrabold text-mcn-charcoal mb-1">Reason for Rejection (Visible to Customer)</label>
+                <textarea
+                  rows={3}
+                  value={rejectReasonNotes}
+                  onChange={(e) => setRejectReasonNotes(e.target.value)}
+                  placeholder="Explain why the return is being declined (e.g. past policy window, non-defective)..."
+                  className="w-full px-3 py-2 border border-mcn-gray-300 rounded-lg text-xs text-mcn-charcoal focus:ring-2 focus:ring-mcn-red outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-mcn-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setRejectModalReturn(null)}
+                  className="px-4 py-2 border border-mcn-gray-300 text-mcn-charcoal font-bold rounded-lg hover:bg-mcn-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-mcn-red text-white font-bold rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Reject Request
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Mark Refunded Modal */}
+      {refundModalReturn && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+            <div className="flex items-center justify-between mb-4 border-b border-mcn-gray-200 pb-3">
+              <h3 className="font-extrabold text-base text-emerald-800 flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-emerald-600" /> Mark as Refunded
+              </h3>
+              <button onClick={() => setRefundModalReturn(null)} className="text-mcn-gray-400 hover:text-mcn-charcoal">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                try {
+                  await updateReturnRequestStatus(refundModalReturn.id, 'Refunded', {
+                    refund_method: refundMethod,
+                    admin_notes: refundNotes.trim() || null,
+                    customerId: refundModalReturn.customer_id,
+                    orderId: refundModalReturn.order_id,
+                  });
+                  showToast('Return request completed and marked as Refunded!', 'success');
+                  setRefundModalReturn(null);
+                  loadAllData();
+                } catch (err: any) {
+                  showToast(err.message || 'Failed to mark as refunded.', 'error');
+                }
+              }}
+              className="space-y-4 text-xs"
+            >
+              <div>
+                <label className="block font-extrabold text-mcn-charcoal mb-1">
+                  Refund Payment Method <span className="text-mcn-red">*</span>
+                </label>
+                <select
+                  value={refundMethod}
+                  onChange={(e) => setRefundMethod(e.target.value)}
+                  className="w-full px-3 py-2 border border-mcn-gray-300 rounded-lg text-xs font-bold text-mcn-charcoal focus:ring-2 focus:ring-emerald-500 outline-none"
+                >
+                  <option value="Cash">Cash in Hand (Store Return)</option>
+                  <option value="Bank Transfer">Bank Transfer (eSewa / Khalti / ConnectIPS)</option>
+                  <option value="Store Credit">Store Credit / Exchange</option>
+                  <option value="Other">Other Method</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-extrabold text-mcn-charcoal mb-1">Settlement Details / Admin Notes</label>
+                <textarea
+                  rows={3}
+                  value={refundNotes}
+                  onChange={(e) => setRefundNotes(e.target.value)}
+                  placeholder="Enter cash voucher number, bank transaction reference ID, or settlement notes..."
+                  className="w-full px-3 py-2 border border-mcn-gray-300 rounded-lg text-xs text-mcn-charcoal focus:ring-2 focus:ring-emerald-500 outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-mcn-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setRefundModalReturn(null)}
+                  className="px-4 py-2 border border-mcn-gray-300 text-mcn-charcoal font-bold rounded-lg hover:bg-mcn-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-colors"
+                >
+                  Mark Refunded
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

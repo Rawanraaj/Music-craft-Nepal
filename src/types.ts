@@ -79,6 +79,25 @@ export interface Message {
   created_at: string;
 }
 
+export type ReturnReason = 'Wrong item' | 'Damaged' | 'Not as described' | 'Changed mind' | 'Other';
+export type ReturnStatus = 'Pending' | 'Approved' | 'Rejected' | 'Awaiting Item Return' | 'Item Received' | 'Refunded';
+
+export interface ReturnRequest {
+  id: string;
+  order_id: string;
+  customer_id: string;
+  reason: ReturnReason;
+  description: string;
+  image_url?: string | null;
+  status: ReturnStatus;
+  admin_notes?: string | null;
+  refund_method?: string | null;
+  created_at: string;
+  updated_at: string;
+  customer_name?: string;
+  customer_email?: string;
+}
+
 export interface WholesaleInquiry {
   id: string;
   businessName: string;
