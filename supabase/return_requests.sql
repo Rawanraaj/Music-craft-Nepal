@@ -6,7 +6,7 @@
 -- 1. Create return_requests table
 CREATE TABLE IF NOT EXISTS public.return_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+  order_id TEXT NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
   customer_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   reason TEXT NOT NULL,
   description TEXT NOT NULL,
