@@ -1073,7 +1073,8 @@ export async function fetchUnreadMessageCount(userId: string, isCustomer: boolea
 }
 
 // Map DB Return Request to Frontend ReturnRequest
-function mapDbReturnRequest(data: any): ReturnRequest {
+function mapDbReturnRequest(data: any, profileMap?: Map<string, { name: string; email: string }>): ReturnRequest {
+  const profile = profileMap?.get(data.customer_id);
   return {
     id: data.id,
     order_id: data.order_id,
@@ -1086,15 +1087,15 @@ function mapDbReturnRequest(data: any): ReturnRequest {
     refund_method: data.refund_method,
     created_at: data.created_at,
     updated_at: data.updated_at,
-    customer_name: data.orders?.customer_name || data.profiles?.full_name || 'Customer',
-    customer_email: data.orders?.email || data.profiles?.email || '',
+    customer_name: data.orders?.customer_name || profile?.name || 'Customer',
+    customer_email: data.orders?.email || profile?.email || '',
   };
 }
 
 export async function fetchUserReturnRequests(userId: string): Promise<ReturnRequest[]> {
   const { data, error } = await supabase
     .from('return_requests')
-    .select('*, orders(customer_name, email), profiles(full_name, email)')
+    .select('*, orders(customer_name, email)')
     .eq('customer_id', userId)
     .order('created_at', { ascending: false });
 
@@ -1104,13 +1105,26 @@ export async function fetchUserReturnRequests(userId: string): Promise<ReturnReq
     if (error.code === '42P01' || error.message.includes('find the table')) return [];
     throw error;
   }
-  return (data || []).map(mapDbReturnRequest);
+  if (!data || data.length === 0) return [];
+
+  // Fetch profile for userId
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, name, email')
+    .eq('id', userId);
+
+  const profileMap = new Map<string, { name: string; email: string }>();
+  for (const p of profiles || []) {
+    profileMap.set(p.id, { name: p.name || 'Customer', email: p.email || '' });
+  }
+
+  return data.map((r) => mapDbReturnRequest(r, profileMap));
 }
 
 export async function fetchAllReturnRequests(): Promise<ReturnRequest[]> {
   const { data, error } = await supabase
     .from('return_requests')
-    .select('*, orders(customer_name, email), profiles(full_name, email)')
+    .select('*, orders(customer_name, email)')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -1118,7 +1132,24 @@ export async function fetchAllReturnRequests(): Promise<ReturnRequest[]> {
     if (error.code === '42P01' || error.message.includes('find the table')) return [];
     throw error;
   }
-  return (data || []).map(mapDbReturnRequest);
+  if (!data || data.length === 0) return [];
+
+  // Batch fetch profiles for all unique customer_ids
+  const customerIds = [...new Set(data.map((r) => r.customer_id))];
+  const profileMap = new Map<string, { name: string; email: string }>();
+
+  if (customerIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, name, email')
+      .in('id', customerIds);
+
+    for (const p of profiles || []) {
+      profileMap.set(p.id, { name: p.name || 'Customer', email: p.email || '' });
+    }
+  }
+
+  return data.map((r) => mapDbReturnRequest(r, profileMap));
 }
 
 export async function createReturnRequest(requestData: {
@@ -1138,10 +1169,22 @@ export async function createReturnRequest(requestData: {
       image_url: requestData.image_url || null,
       status: 'Pending',
     }])
-    .select('*, orders(customer_name, email), profiles(full_name, email)')
+    .select('*, orders(customer_name, email)')
     .single();
 
   if (error) throw error;
+
+  // Fetch profile details for customer_id
+  const { data: profileData } = await supabase
+    .from('profiles')
+    .select('id, name, email')
+    .eq('id', requestData.customer_id)
+    .maybeSingle();
+
+  const profileMap = new Map<string, { name: string; email: string }>();
+  if (profileData) {
+    profileMap.set(profileData.id, { name: profileData.name || 'Customer', email: profileData.email || '' });
+  }
 
   // Auto-create or reuse conversation for this order return
   try {
@@ -1155,7 +1198,7 @@ export async function createReturnRequest(requestData: {
     console.warn('Could not auto-send message for return request:', convErr);
   }
 
-  return mapDbReturnRequest(data);
+  return mapDbReturnRequest(data, profileMap);
 }
 
 export async function updateReturnRequestStatus(
