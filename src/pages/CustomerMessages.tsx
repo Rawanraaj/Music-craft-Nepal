@@ -8,9 +8,10 @@ import {
   fetchConversationMessages,
   sendMessage,
   markMessagesAsRead,
+  deleteConversation,
 } from '../lib/api';
 import type { Conversation, Message } from '../types';
-import { MessageSquare, Send, ArrowLeft, Package, ShoppingBag, CheckCheck } from 'lucide-react';
+import { MessageSquare, Send, ArrowLeft, Package, ShoppingBag, CheckCheck, Trash2 } from 'lucide-react';
 
 export default function CustomerMessages() {
   const { user, loading: authLoading } = useAuth();
@@ -64,6 +65,24 @@ export default function CustomerMessages() {
       setTimeout(scrollToBottom, 100);
     } catch (err: any) {
       console.error('Error loading messages:', err);
+    }
+  };
+
+  const handleDeleteConversation = async (convId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this conversation?')) return;
+    try {
+      await deleteConversation(convId);
+      showToast('Conversation deleted.', 'success');
+      const updated = conversations.filter((c) => c.id !== convId);
+      setConversations(updated);
+      if (activeConv?.id === convId) {
+        setActiveConv(updated.length > 0 ? updated[0] : null);
+        setMessages([]);
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast('Failed to delete conversation.', 'error');
     }
   };
 
@@ -204,7 +223,7 @@ export default function CustomerMessages() {
                     <button
                       key={c.id}
                       onClick={() => setActiveConv(c)}
-                      className={`w-full text-left p-4 transition-colors flex items-start gap-3 relative ${
+                      className={`w-full text-left p-4 transition-colors flex items-start gap-3 relative group ${
                         isSelected ? 'bg-white border-l-4 border-mcn-blue shadow-sm' : 'hover:bg-white/60'
                       }`}
                     >
@@ -236,6 +255,14 @@ export default function CustomerMessages() {
                           {c.unread_count}
                         </span>
                       ) : null}
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteConversation(c.id, e)}
+                        title="Delete conversation"
+                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-mcn-gray-400 hover:text-mcn-red hover:bg-red-50 transition-all shrink-0 ml-1"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </button>
                   );
                 })}
@@ -269,9 +296,19 @@ export default function CustomerMessages() {
                         </Link>
                       )}
                     </div>
-                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
-                      Live Support
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteConversation(activeConv.id)}
+                        title="Delete conversation"
+                        className="p-1.5 rounded-lg text-mcn-gray-400 hover:text-mcn-red hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                        Live Support
+                      </span>
+                    </div>
                   </div>
 
                   {/* Message Thread */}

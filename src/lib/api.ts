@@ -403,6 +403,15 @@ export async function updateInquiryStatus(id: string, status: WholesaleInquiry['
   if (error) throw error;
 }
 
+export async function deleteInquiry(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('wholesale_inquiries')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
 // REVIEWS API
 export async function fetchReviews(productId: string): Promise<Review[]> {
   const { data, error } = await supabase
@@ -812,6 +821,24 @@ export async function uploadBannerImage(file: File): Promise<string> {
   return data.publicUrl;
 }
 
+export async function uploadArticleImage(file: File): Promise<string> {
+  const fileExt = file.name.split('.').pop();
+  const fileName = `article_${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+  const filePath = `articles/${fileName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('product-images')
+    .upload(filePath, file);
+
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage
+    .from('product-images')
+    .getPublicUrl(filePath);
+
+  return data.publicUrl;
+}
+
 // MESSAGING API
 export async function fetchCustomerConversations(customerId: string): Promise<Conversation[]> {
   const { data: convs, error } = await supabase
@@ -1033,12 +1060,34 @@ export async function startConversation({
 
 export async function markMessagesAsRead(conversationId: string, readerType: 'customer' | 'admin'): Promise<void> {
   const targetSenderType = readerType === 'customer' ? 'admin' : 'customer';
-  await supabase
+  const { error } = await supabase
     .from('messages')
     .update({ read: true })
     .eq('conversation_id', conversationId)
     .eq('sender_type', targetSenderType)
     .eq('read', false);
+
+  if (!error && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('messages-read'));
+  }
+}
+
+export async function deleteConversation(conversationId: string): Promise<void> {
+  await supabase
+    .from('messages')
+    .delete()
+    .eq('conversation_id', conversationId);
+
+  const { error } = await supabase
+    .from('conversations')
+    .delete()
+    .eq('id', conversationId);
+
+  if (error) throw error;
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('messages-read'));
+  }
 }
 
 export async function fetchUnreadMessageCount(userId: string, isCustomer: boolean): Promise<number> {

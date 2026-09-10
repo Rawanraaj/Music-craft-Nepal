@@ -79,21 +79,28 @@ export default function Header() {
       setMobileMenuOpen(false);
       setUnreadCount(0);
     } else {
-      fetchUnreadMessageCount(user.id, !user.isAdmin).then(setUnreadCount).catch(console.error);
+      const updateCount = () => {
+        fetchUnreadMessageCount(user.id, !user.isAdmin).then(setUnreadCount).catch(console.error);
+      };
 
-      // Realtime subscription for message inserts
+      updateCount();
+
+      window.addEventListener('messages-read', updateCount);
+
+      // Realtime subscription for all message changes (INSERT, UPDATE, DELETE)
       const channel = supabase
         .channel(`header-messages:${user.id}`)
         .on(
           'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'messages' },
+          { event: '*', schema: 'public', table: 'messages' },
           () => {
-            fetchUnreadMessageCount(user.id, !user.isAdmin).then(setUnreadCount).catch(console.error);
+            updateCount();
           }
         )
         .subscribe();
 
       return () => {
+        window.removeEventListener('messages-read', updateCount);
         supabase.removeChannel(channel);
       };
     }

@@ -60,6 +60,7 @@ import {
   uploadProductImage,
   updateOrderStatus,
   updateInquiryStatus,
+  deleteInquiry,
   fetchCoupons,
   createCoupon,
   updateCoupon,
@@ -70,6 +71,7 @@ import {
   createArticle,
   updateArticle,
   deleteArticle,
+  uploadArticleImage,
   fetchAllPromoBanners,
   createPromoBanner,
   updatePromoBanner,
@@ -79,6 +81,7 @@ import {
   fetchConversationMessages,
   sendMessage as apiSendMessage,
   markMessagesAsRead,
+  deleteConversation,
   fetchUnreadMessageCount,
   fetchAllReturnRequests,
   updateReturnRequestStatus,
@@ -194,6 +197,7 @@ export default function Admin() {
     readTime: '5 min',
     category: 'Buying Guides',
   });
+  const [articleImageUploading, setArticleImageUploading] = useState(false);
 
   // CMS Settings States
   const [cmsHeroSlides, setCmsHeroSlides] = useState<any[]>([]);
@@ -312,12 +316,43 @@ export default function Admin() {
       const msgs = await fetchConversationMessages(convId);
       setAdminMessages(msgs);
       await markMessagesAsRead(convId, 'admin');
-      setAdminConversations((prev) =>
-        prev.map((c) => (c.id === convId ? { ...c, unread_count: 0 } : c))
-      );
+      setAdminConversations((prev) => {
+        const updated = prev.map((c) => (c.id === convId ? { ...c, unread_count: 0 } : c));
+        const totalUnread = updated.reduce((sum, c) => sum + (c.unread_count || 0), 0);
+        setAdminUnreadCount(totalUnread);
+        return updated;
+      });
     } catch (err) {
       console.error('Error loading thread messages:', err);
     }
+  };
+
+  const handleDeleteAdminConversation = async (convId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Conversation',
+      message: 'Are you sure you want to delete this customer conversation? All messages will be permanently removed.',
+      onConfirm: async () => {
+        try {
+          await deleteConversation(convId);
+          showToast('Conversation deleted successfully.', 'success');
+          const updated = adminConversations.filter((c) => c.id !== convId);
+          setAdminConversations(updated);
+          const totalUnread = updated.reduce((sum, c) => sum + (c.unread_count || 0), 0);
+          setAdminUnreadCount(totalUnread);
+          if (adminActiveConv?.id === convId) {
+            setAdminActiveConv(updated.length > 0 ? updated[0] : null);
+            setAdminMessages([]);
+          }
+        } catch (err: any) {
+          console.error('Failed to delete conversation:', err);
+          showToast('Failed to delete conversation.', 'error');
+        } finally {
+          setConfirmModal(null);
+        }
+      },
+    });
   };
 
   const handleAdminSendMessage = async (e: React.FormEvent) => {
@@ -361,29 +396,37 @@ export default function Admin() {
     if (!user || !user.isAdmin) return;
     loadAdminConversations();
 
+    const onMessagesRead = () => {
+      loadAdminConversations(adminActiveConvRef.current?.id);
+    };
+    window.addEventListener('messages-read', onMessagesRead);
+
     const channel = supabase
       .channel('admin:messages')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
+        { event: '*', schema: 'public', table: 'messages' },
         (payload) => {
-          const newMsg = payload.new as Message;
-          const currentActive = adminActiveConvRef.current;
-          if (currentActive && newMsg.conversation_id === currentActive.id) {
-            setAdminMessages((prev) => {
-              if (prev.some((m) => m.id === newMsg.id)) return prev;
-              return [...prev, newMsg];
-            });
-            if (newMsg.sender_type === 'customer') {
-              markMessagesAsRead(currentActive.id, 'admin');
+          if (payload.eventType === 'INSERT') {
+            const newMsg = payload.new as Message;
+            const currentActive = adminActiveConvRef.current;
+            if (currentActive && newMsg.conversation_id === currentActive.id) {
+              setAdminMessages((prev) => {
+                if (prev.some((m) => m.id === newMsg.id)) return prev;
+                return [...prev, newMsg];
+              });
+              if (newMsg.sender_type === 'customer') {
+                markMessagesAsRead(currentActive.id, 'admin');
+              }
             }
           }
-          loadAdminConversations(currentActive?.id);
+          loadAdminConversations(adminActiveConvRef.current?.id);
         }
       )
       .subscribe();
 
     return () => {
+      window.removeEventListener('messages-read', onMessagesRead);
       supabase.removeChannel(channel);
     };
   }, [user]);
@@ -856,6 +899,21 @@ export default function Admin() {
     }
   };
 
+  const handleArticleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    setArticleImageUploading(true);
+    try {
+      const url = await uploadArticleImage(e.target.files[0]);
+      setArticleFields((prev) => ({ ...prev, image: url }));
+      showToast('Article image uploaded successfully!', 'success');
+    } catch (err) {
+      console.error('Failed to upload article image:', err);
+      showToast('Failed to upload article image.', 'error');
+    } finally {
+      setArticleImageUploading(false);
+    }
+  };
+
   // Promo Banner CRUD Operations
   const handleTogglePromoSection = async (enabled: boolean) => {
     setPromoSectionEnabled(enabled);
@@ -1199,6 +1257,26 @@ export default function Admin() {
       console.error('Failed to update inquiry status:', err);
       showToast('Failed to update inquiry status.', 'error');
     }
+  };
+
+  const handleDeleteInquiry = async (inquiryId: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Inquiry',
+      message: 'Are you sure you want to delete this wholesale inquiry?',
+      onConfirm: async () => {
+        try {
+          await deleteInquiry(inquiryId);
+          setInquiries((prev) => prev.filter((i) => i.id !== inquiryId));
+          showToast('Inquiry deleted successfully.', 'success');
+        } catch (err) {
+          console.error('Failed to delete inquiry:', err);
+          showToast('Failed to delete inquiry.', 'error');
+        } finally {
+          setConfirmModal(null);
+        }
+      },
+    });
   };
 
   const NAV_ITEMS = [
@@ -1869,7 +1947,7 @@ export default function Admin() {
                         <button
                           key={c.id}
                           onClick={() => setAdminActiveConv(c)}
-                          className={`w-full text-left p-4 transition-colors flex items-start gap-3 relative ${
+                          className={`w-full text-left p-4 transition-colors flex items-start gap-3 relative group ${
                             isSelected ? 'bg-white border-l-4 border-mcn-blue shadow-sm' : 'hover:bg-white/60'
                           }`}
                         >
@@ -1904,6 +1982,14 @@ export default function Admin() {
                               {c.unread_count}
                             </span>
                           ) : null}
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteAdminConversation(c.id, e)}
+                            title="Delete conversation"
+                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-mcn-gray-400 hover:text-mcn-red hover:bg-red-50 transition-all shrink-0 ml-1"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </button>
                       );
                     })}
@@ -1943,17 +2029,27 @@ export default function Admin() {
                             Subject: <span className="font-bold text-mcn-charcoal">{adminActiveConv.subject || 'General Inquiry'}</span>
                           </p>
                         </div>
-                        {adminActiveConv.product && (
-                          <div className="text-right">
-                            <p className="text-xs font-bold text-mcn-blue">Item: {adminActiveConv.product.name}</p>
-                            <p className="text-[10px] text-mcn-gray-400">Rs. {adminActiveConv.product.price.toLocaleString()}</p>
-                          </div>
-                        )}
-                        {adminActiveConv.order_id && (
-                          <div className="text-right">
-                            <p className="text-xs font-bold text-emerald-700">Order #{adminActiveConv.order_id}</p>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-4">
+                          {adminActiveConv.product && (
+                            <div className="text-right">
+                              <p className="text-xs font-bold text-mcn-blue">Item: {adminActiveConv.product.name}</p>
+                              <p className="text-[10px] text-mcn-gray-400">Rs. {adminActiveConv.product.price.toLocaleString()}</p>
+                            </div>
+                          )}
+                          {adminActiveConv.order_id && (
+                            <div className="text-right">
+                              <p className="text-xs font-bold text-emerald-700">Order #{adminActiveConv.order_id}</p>
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAdminConversation(adminActiveConv.id)}
+                            title="Delete conversation"
+                            className="p-1.5 rounded-lg text-mcn-gray-400 hover:text-mcn-red hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
                       </div>
 
                       {/* Messages Feed */}
@@ -2058,6 +2154,14 @@ export default function Admin() {
                           {inquiry.id} - {inquiry.date}
                         </p>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteInquiry(inquiry.id)}
+                        title="Delete inquiry"
+                        className="p-1.5 rounded-lg text-mcn-gray-400 hover:text-mcn-red hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                     <div className="grid sm:grid-cols-2 gap-3 mb-3">
                       <div>
@@ -3388,15 +3492,45 @@ export default function Admin() {
                       />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-mcn-charcoal mb-1">Image URL</label>
-                    <input
-                      type="text"
-                      required
-                      value={articleFields.image}
-                      onChange={(e) => setArticleFields((prev) => ({ ...prev, image: e.target.value }))}
-                      className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
-                    />
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-mcn-charcoal">Article Image</label>
+                    
+                    <div className="flex items-center gap-4">
+                      <label className="inline-flex items-center gap-2 px-4 py-2 bg-mcn-gray-100 hover:bg-mcn-gray-200 text-mcn-charcoal font-bold text-xs rounded-lg cursor-pointer border border-mcn-gray-300 transition-colors">
+                        <Upload className="w-4 h-4" />
+                        {articleImageUploading ? 'Uploading...' : 'Upload Image'}
+                        <input type="file" accept="image/*" onChange={handleArticleImageUpload} className="hidden" />
+                      </label>
+                      <span className="text-xs text-mcn-gray-400">or paste direct image URL below</span>
+                    </div>
+
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="https://example.com/article-image.jpg"
+                        value={articleFields.image}
+                        onChange={(e) => setArticleFields((prev) => ({ ...prev, image: e.target.value }))}
+                        className="w-full h-10 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                      />
+                    </div>
+
+                    {articleFields.image && (
+                      <div className="relative mt-2 inline-block">
+                        <img
+                          src={articleFields.image}
+                          alt="Article preview"
+                          className="h-28 w-auto max-w-full object-cover rounded-lg border border-mcn-gray-200 shadow-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setArticleFields((prev) => ({ ...prev, image: '' }))}
+                          className="absolute -top-2 -right-2 bg-mcn-red text-white rounded-full p-1 shadow hover:bg-red-700 transition-colors"
+                          title="Remove image"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-mcn-charcoal mb-1">Excerpt (Summary)</label>
