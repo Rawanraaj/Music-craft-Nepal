@@ -414,6 +414,14 @@ export default function MyOrders() {
                         </button>
                       )}
 
+                      <button
+                        onClick={() => handleMessageSeller(order)}
+                        className="bg-white hover:bg-mcn-blue/5 text-mcn-blue border border-mcn-blue/30 font-bold text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        Message Seller
+                      </button>
+
                       {cancelAllowed && (
                         <button
                           onClick={() => handleCancelOrder(order.id)}
@@ -636,7 +644,7 @@ export default function MyOrders() {
                     </div>
                     <div>
                       <span className="font-bold text-mcn-charcoal">Payment: </span>
-                      {order.paymentMethod === 'cod' ? 'Cash on Delivery' : 'eSewa / Khalti Transfer'}
+                      {order.paymentMethod === 'cod' || order.paymentMethod === 'Cash on Delivery' || !order.paymentMethod ? 'Cash on Delivery' : order.paymentMethod}
                       {order.coupon_code && (
                         <span className="ml-2 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-mono font-bold text-xs">
                           COUPON: {order.coupon_code}
