@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Package,
@@ -529,15 +529,18 @@ export default function Admin() {
 
   useEffect(() => {
     if (!authLoading) {
-      if (!user || !user.isAdmin) {
-        navigate('/login');
+      if (!user) {
+        navigate('/login', { replace: true });
+      } else if (!user.isAdmin) {
+        showToast('Access denied: Administrator privileges required.', 'error');
+        navigate('/', { replace: true });
       } else {
         verifyAdminSecurity();
         loadAllData();
         loadCmsData();
       }
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, showToast]);
 
   // Analytics Calculations
   const salesData = useMemo(() => {
@@ -584,7 +587,13 @@ export default function Admin() {
     );
   }
 
-  if (!user || !user.isAdmin) return null;
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!user.isAdmin) {
+    return <Navigate to="/" replace />;
+  }
 
   // Overview calculations
   const totalRevenue = orders
