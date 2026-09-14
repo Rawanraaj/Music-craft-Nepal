@@ -2,8 +2,27 @@ import { supabase } from './supabase';
 import type { Product, Order, WholesaleInquiry, Review, Article, PromoBanner, ReturnRequest, ReturnReason, ReturnStatus, Conversation, Message } from '../types';
 
 // Helper to map DB Product to Frontend Product
-export function mapDbProduct(p: any): Product {
-  if (!p) throw new Error('Invalid product data');
+export function mapDbProduct(p: any, fallbackPrice?: number): Product {
+  if (!p) {
+    return {
+      id: 'deleted-product',
+      name: '[Deleted Product]',
+      slug: 'deleted-product',
+      category: 'Uncategorized',
+      categories: [],
+      price: fallbackPrice != null ? Number(fallbackPrice) : 0,
+      rating: 0,
+      reviewCount: 0,
+      images: ['https://images.unsplash.com/photo-1511192336575-5a79af67a629?q=80&w=300'],
+      description: 'This product is no longer available in our store catalog.',
+      specs: [],
+      features: [],
+      inStock: false,
+      stock_quantity: 0,
+      low_stock_threshold: 0,
+      variants: [],
+    };
+  }
 
   let categoriesList: string[] = [];
   if (Array.isArray(p.categories)) {
@@ -67,7 +86,7 @@ export function mapDbOrder(o: any): Order {
     date: o.created_at || new Date().toISOString(),
     paymentMethod: o.payment_method,
     items: (o.order_items || []).map((item: any) => ({
-      product: mapDbProduct(item.products),
+      product: mapDbProduct(item.products, item.price_at_time),
       quantity: item.quantity,
       selectedVariant: item.variant || undefined,
     })),
