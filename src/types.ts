@@ -67,6 +67,8 @@ export interface Conversation {
   customer_email?: string;
   unread_count?: number;
   product?: Product;
+  deleted_by_admin?: boolean;
+  deleted_by_customer?: boolean;
 }
 
 export interface Message {

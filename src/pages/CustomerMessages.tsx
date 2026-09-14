@@ -72,7 +72,7 @@ export default function CustomerMessages() {
     if (e) e.stopPropagation();
     if (!window.confirm('Are you sure you want to delete this conversation?')) return;
     try {
-      await deleteConversation(convId);
+      await deleteConversation(convId, 'customer');
       showToast('Conversation deleted.', 'success');
       const updated = conversations.filter((c) => c.id !== convId);
       setConversations(updated);

@@ -332,10 +332,10 @@ export default function Admin() {
     setConfirmModal({
       isOpen: true,
       title: 'Delete Conversation',
-      message: 'Are you sure you want to delete this customer conversation? All messages will be permanently removed.',
+      message: 'Are you sure you want to delete this conversation from your inbox? The customer will still see it unless they delete it too.',
       onConfirm: async () => {
         try {
-          await deleteConversation(convId);
+          await deleteConversation(convId, 'admin');
           showToast('Conversation deleted successfully.', 'success');
           const updated = adminConversations.filter((c) => c.id !== convId);
           setAdminConversations(updated);

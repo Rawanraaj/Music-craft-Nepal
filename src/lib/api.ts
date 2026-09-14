@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Product, Order, WholesaleInquiry, Review, Article, PromoBanner, ReturnRequest, ReturnReason, ReturnStatus } from '../types';
+import type { Product, Order, WholesaleInquiry, Review, Article, PromoBanner, ReturnRequest, ReturnReason, ReturnStatus, Conversation, Message } from '../types';
 
 // Helper to map DB Product to Frontend Product
 export function mapDbProduct(p: any): Product {
@@ -845,6 +845,7 @@ export async function fetchCustomerConversations(customerId: string): Promise<Co
     .from('conversations')
     .select('*, products(*)')
     .eq('customer_id', customerId)
+    .eq('deleted_by_customer', false)
     .order('last_message_at', { ascending: false });
 
   if (error) throw error;
@@ -870,6 +871,8 @@ export async function fetchCustomerConversations(customerId: string): Promise<Co
       last_message_at: c.last_message_at,
       unread_count: count || 0,
       product: c.products ? mapDbProduct(c.products) : undefined,
+      deleted_by_admin: c.deleted_by_admin,
+      deleted_by_customer: c.deleted_by_customer,
     });
   }
 
@@ -881,6 +884,7 @@ export async function fetchAdminConversations(): Promise<Conversation[]> {
   const { data: convs, error } = await supabase
     .from('conversations')
     .select('*, products(*)')
+    .eq('deleted_by_admin', false)
     .order('last_message_at', { ascending: false });
 
   if (error) throw error;
@@ -923,6 +927,8 @@ export async function fetchAdminConversations(): Promise<Conversation[]> {
       customer_email: profile?.email || '',
       unread_count: count || 0,
       product: c.products ? mapDbProduct(c.products) : undefined,
+      deleted_by_admin: c.deleted_by_admin,
+      deleted_by_customer: c.deleted_by_customer,
     });
   }
 
@@ -967,10 +973,19 @@ export async function sendMessage({
 
   if (error) throw error;
 
-  // Update conversation last_message_at
+  // Update conversation last_message_at and unhide for recipient
+  const updatePayload: { last_message_at: string; deleted_by_admin?: boolean; deleted_by_customer?: boolean } = {
+    last_message_at: new Date().toISOString(),
+  };
+  if (senderType === 'customer') {
+    updatePayload.deleted_by_admin = false;
+  } else {
+    updatePayload.deleted_by_customer = false;
+  }
+
   await supabase
     .from('conversations')
-    .update({ last_message_at: new Date().toISOString() })
+    .update(updatePayload)
     .eq('id', conversationId);
 
   return data;
@@ -1006,7 +1021,13 @@ export async function startConversation({
 
   let conversationId = existing?.id;
 
-  if (!conversationId) {
+  if (existing) {
+    // Unhide conversation if previously deleted by either side
+    await supabase
+      .from('conversations')
+      .update({ deleted_by_customer: false, deleted_by_admin: false })
+      .eq('id', existing.id);
+  } else {
     const { data: newConv, error: createError } = await supabase
       .from('conversations')
       .insert([
@@ -1016,6 +1037,8 @@ export async function startConversation({
           product_id: productId || null,
           order_id: orderId || null,
           status: 'open',
+          deleted_by_customer: false,
+          deleted_by_admin: false,
         },
       ])
       .select()
@@ -1055,6 +1078,8 @@ export async function startConversation({
     last_message_at: fullConv.last_message_at,
     unread_count: 0,
     product: fullConv.products ? mapDbProduct(fullConv.products) : undefined,
+    deleted_by_admin: fullConv.deleted_by_admin,
+    deleted_by_customer: fullConv.deleted_by_customer,
   };
 }
 
@@ -1072,16 +1097,11 @@ export async function markMessagesAsRead(conversationId: string, readerType: 'cu
   }
 }
 
-export async function deleteConversation(conversationId: string): Promise<void> {
-  await supabase
-    .from('messages')
-    .delete()
-    .eq('conversation_id', conversationId);
-
-  const { error } = await supabase
-    .from('conversations')
-    .delete()
-    .eq('id', conversationId);
+export async function deleteConversation(conversationId: string, role: 'admin' | 'customer' = 'admin'): Promise<void> {
+  const { error } = await supabase.rpc('delete_conversation', {
+    p_conversation_id: conversationId,
+    p_role: role,
+  });
 
   if (error) throw error;
 
@@ -1092,11 +1112,12 @@ export async function deleteConversation(conversationId: string): Promise<void> 
 
 export async function fetchUnreadMessageCount(userId: string, isCustomer: boolean): Promise<number> {
   if (isCustomer) {
-    // Count unread admin messages in customer's conversations
+    // Count unread admin messages in customer's active conversations
     const { data: convs } = await supabase
       .from('conversations')
       .select('id')
-      .eq('customer_id', userId);
+      .eq('customer_id', userId)
+      .eq('deleted_by_customer', false);
 
     const convIds = (convs || []).map((c) => c.id);
     if (convIds.length === 0) return 0;
@@ -1110,10 +1131,19 @@ export async function fetchUnreadMessageCount(userId: string, isCustomer: boolea
 
     return count || 0;
   } else {
-    // Count unread customer messages in all conversations for admin
+    // Count unread customer messages in all active conversations for admin (not deleted_by_admin)
+    const { data: convs } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('deleted_by_admin', false);
+
+    const convIds = (convs || []).map((c) => c.id);
+    if (convIds.length === 0) return 0;
+
     const { count } = await supabase
       .from('messages')
       .select('*', { count: 'exact', head: true })
+      .in('conversation_id', convIds)
       .eq('sender_type', 'customer')
       .eq('read', false);
 
