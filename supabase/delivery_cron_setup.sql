@@ -19,8 +19,24 @@ DECLARE
   now_time TIMESTAMPTZ := now();
   first_threshold_minutes INTEGER := 45;
   repeat_threshold_minutes INTEGER := 20;
-  service_key TEXT := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNnaWdza3R5ZXloeGpvZnNheHFzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NDM1MDg5MywiZXhwIjoyMDk5OTI2ODkzfQ.BtoOkhkzH6y_K1ISNq9DhLk4snOEyMJwcUE75pszgxY';
+  service_key TEXT;
 BEGIN
+  -- Defensive Guard: Only pg_cron (postgres/supabase_admin) or service_role can run this
+  IF current_user NOT IN ('postgres', 'supabase_admin') AND (auth.role() IS NULL OR auth.role() != 'service_role') THEN
+    RAISE EXCEPTION 'Access denied: unauthorized caller';
+  END IF;
+
+  -- Securely retrieve the service role key from Supabase Vault.
+  -- Setup: Supabase Dashboard -> Project Settings -> Vault -> Add secret (name: 'service_role_key').
+  SELECT decrypted_secret INTO service_key
+  FROM vault.decrypted_secrets
+  WHERE name = 'service_role_key'
+  LIMIT 1;
+
+  -- Fallback to app setting if configured:
+  IF service_key IS NULL THEN
+    service_key := current_setting('app.settings.service_role_key', true);
+  END IF;
   FOR order_rec IN
     SELECT id, user_id, customer_name, out_for_delivery_at, delivery_confirmation_attempts, last_delivery_checkin_at
     FROM public.orders
@@ -48,7 +64,7 @@ BEGIN
         url := 'https://sgigsktyeyhxjofsaxqs.functions.supabase.co/delivery-checkin',
         headers := jsonb_build_object(
           'Content-Type', 'application/json',
-          'Authorization', 'Bearer ' || service_key
+          'Authorization', 'Bearer ' || COALESCE(service_key, '')
         ),
         body := jsonb_build_object('order_id', order_rec.id)
       );
@@ -56,6 +72,18 @@ BEGIN
   END LOOP;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Explicitly ensure function is owned by postgres
+ALTER FUNCTION public.process_delivery_confirmations() OWNER TO postgres;
+
+-- Revoke execute from all unauthorized public/anon/authenticated roles
+REVOKE ALL ON FUNCTION public.process_delivery_confirmations() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.process_delivery_confirmations() FROM anon;
+REVOKE ALL ON FUNCTION public.process_delivery_confirmations() FROM authenticated;
+
+-- Grant execute exclusively to service_role and postgres (for pg_cron)
+GRANT EXECUTE ON FUNCTION public.process_delivery_confirmations() TO service_role;
+GRANT EXECUTE ON FUNCTION public.process_delivery_confirmations() TO postgres;
 
 -- 2. Register cron job to run every 5 minutes
 SELECT cron.unschedule('delivery-confirmation-job') WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'delivery-confirmation-job');
