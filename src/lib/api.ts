@@ -868,38 +868,41 @@ export async function fetchCustomerConversations(customerId: string): Promise<Co
     .order('last_message_at', { ascending: false });
 
   if (error) throw error;
+  if (!convs || convs.length === 0) return [];
 
-  const result: Conversation[] = [];
-  for (const c of convs || []) {
-    // Count unread admin messages
-    const { count } = await supabase
-      .from('messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('conversation_id', c.id)
-      .eq('sender_type', 'admin')
-      .eq('read', false);
+  const convIds = convs.map((c) => c.id);
 
-    result.push({
-      id: c.id,
-      customer_id: c.customer_id,
-      subject: c.subject || undefined,
-      product_id: c.product_id || undefined,
-      order_id: c.order_id || undefined,
-      status: c.status || 'open',
-      created_at: c.created_at,
-      last_message_at: c.last_message_at,
-      unread_count: count || 0,
-      product: c.products ? mapDbProduct(c.products) : undefined,
-      deleted_by_admin: c.deleted_by_admin,
-      deleted_by_customer: c.deleted_by_customer,
-    });
+  // Batched query for unread admin messages across all conversations
+  const { data: unreadMessages } = await supabase
+    .from('messages')
+    .select('conversation_id')
+    .in('conversation_id', convIds)
+    .eq('sender_type', 'admin')
+    .eq('read', false);
+
+  const unreadMap = new Map<string, number>();
+  for (const m of unreadMessages || []) {
+    unreadMap.set(m.conversation_id, (unreadMap.get(m.conversation_id) || 0) + 1);
   }
 
-  return result;
+  return convs.map((c) => ({
+    id: c.id,
+    customer_id: c.customer_id,
+    subject: c.subject || undefined,
+    product_id: c.product_id || undefined,
+    order_id: c.order_id || undefined,
+    status: c.status || 'open',
+    created_at: c.created_at,
+    last_message_at: c.last_message_at,
+    unread_count: unreadMap.get(c.id) || 0,
+    product: c.products ? mapDbProduct(c.products) : undefined,
+    deleted_by_admin: c.deleted_by_admin,
+    deleted_by_customer: c.deleted_by_customer,
+  }));
 }
 
 export async function fetchAdminConversations(): Promise<Conversation[]> {
-  // Step 1: Fetch conversations with product join only (no cross-schema profiles join)
+  // Step 1: Fetch conversations with product join
   const { data: convs, error } = await supabase
     .from('conversations')
     .select('*, products(*)')
@@ -909,31 +912,37 @@ export async function fetchAdminConversations(): Promise<Conversation[]> {
   if (error) throw error;
   if (!convs || convs.length === 0) return [];
 
-  // Step 2: Batch-fetch profiles for all unique customer IDs
+  const convIds = convs.map((c) => c.id);
   const customerIds = [...new Set(convs.map((c) => c.customer_id))];
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, name, email')
-    .in('id', customerIds);
+
+  // Step 2: Fetch profiles and unread customer messages concurrently in parallel
+  const [profilesRes, unreadRes] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, name, email')
+      .in('id', customerIds),
+    supabase
+      .from('messages')
+      .select('conversation_id')
+      .in('conversation_id', convIds)
+      .eq('sender_type', 'customer')
+      .eq('read', false),
+  ]);
 
   const profileMap = new Map<string, { name: string; email: string }>();
-  for (const p of profiles || []) {
+  for (const p of profilesRes.data || []) {
     profileMap.set(p.id, { name: p.name || 'Customer', email: p.email || '' });
   }
 
-  // Step 3: Build result with unread counts
-  const result: Conversation[] = [];
-  for (const c of convs) {
-    const { count } = await supabase
-      .from('messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('conversation_id', c.id)
-      .eq('sender_type', 'customer')
-      .eq('read', false);
+  const unreadMap = new Map<string, number>();
+  for (const m of unreadRes.data || []) {
+    unreadMap.set(m.conversation_id, (unreadMap.get(m.conversation_id) || 0) + 1);
+  }
 
+  // Step 3: Build result with guaranteed fallback to 'Customer' and 0 unread
+  return convs.map((c) => {
     const profile = profileMap.get(c.customer_id);
-
-    result.push({
+    return {
       id: c.id,
       customer_id: c.customer_id,
       subject: c.subject || undefined,
@@ -944,14 +953,12 @@ export async function fetchAdminConversations(): Promise<Conversation[]> {
       last_message_at: c.last_message_at,
       customer_name: profile?.name || 'Customer',
       customer_email: profile?.email || '',
-      unread_count: count || 0,
+      unread_count: unreadMap.get(c.id) || 0,
       product: c.products ? mapDbProduct(c.products) : undefined,
       deleted_by_admin: c.deleted_by_admin,
       deleted_by_customer: c.deleted_by_customer,
-    });
-  }
-
-  return result;
+    };
+  });
 }
 
 export async function fetchConversationMessages(conversationId: string): Promise<Message[]> {
