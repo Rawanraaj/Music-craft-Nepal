@@ -15,6 +15,8 @@ const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest' },
 ];
 
+const PAGE_SIZE = 24;
+
 export default function Shop() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -22,6 +24,7 @@ export default function Shop() {
   
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
 
   const categoryParam = searchParams.get('category') || '';
   const queryParam = searchParams.get('q') || '';
@@ -56,6 +59,11 @@ export default function Shop() {
       setSelectedCategories([]);
     }
   }, [categoryParam]);
+
+  // Reset pagination to initial batch whenever filters or search query change
+  useEffect(() => {
+    setDisplayCount(PAGE_SIZE);
+  }, [categoryParam, queryParam, dealsParam, sortParam, selectedCategories, minPrice, maxPrice, selectedArtisans, inStockOnly]);
 
   // Extract unique artisans from loaded products list
   const uniqueArtisans = useMemo(() => {
@@ -137,6 +145,17 @@ export default function Shop() {
   const filteredProducts = filterResult.items;
   const dealsHadFallback = filterResult.dealsHadFallback;
 
+  // Progressive rendering: slice products to displayCount to prevent mounting 400+ cards at once
+  const visibleProducts = useMemo(() => {
+    return filteredProducts.slice(0, displayCount);
+  }, [filteredProducts, displayCount]);
+
+  const hasMore = displayCount < filteredProducts.length;
+
+  const handleLoadMore = () => {
+    setDisplayCount((prev) => prev + PAGE_SIZE);
+  };
+
   const updateSort = (sort: string) => {
     const params = new URLSearchParams(searchParams);
     params.set('sort', sort);
@@ -162,6 +181,7 @@ export default function Shop() {
     setMinPrice('');
     setMaxPrice('');
     setInStockOnly(false);
+    setDisplayCount(PAGE_SIZE);
     setSearchParams({});
   };
 
@@ -395,11 +415,44 @@ export default function Shop() {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {visibleProducts.map((product) => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+
+                {/* Progressive Load More */}
+                {hasMore && (
+                  <div className="mt-10 flex flex-col items-center gap-3">
+                    <p className="text-sm font-semibold text-mcn-gray-500">
+                      Showing {visibleProducts.length} of {filteredProducts.length} products
+                    </p>
+                    <div className="w-56 h-1.5 bg-mcn-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-mcn-blue rounded-full transition-all duration-300"
+                        style={{
+                          width: `${Math.min(100, Math.round((visibleProducts.length / filteredProducts.length) * 100))}%`
+                        }}
+                      />
+                    </div>
+                    <button
+                      onClick={handleLoadMore}
+                      className="mt-2 px-8 py-3 bg-white border-2 border-mcn-blue text-mcn-blue hover:bg-mcn-blue hover:text-white font-bold text-sm rounded-lg transition-all duration-200 shadow-sm active:scale-[0.98]"
+                    >
+                      Load More Instruments
+                    </button>
+                  </div>
+                )}
+
+                {!hasMore && filteredProducts.length > PAGE_SIZE && (
+                  <div className="mt-10 text-center">
+                    <p className="text-sm font-medium text-mcn-gray-400">
+                      All {filteredProducts.length} products loaded
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
