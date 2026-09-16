@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
@@ -13,8 +13,6 @@ import Checkout from './pages/Checkout';
 import Wholesale from './pages/Wholesale';
 import About from './pages/About';
 import Contact from './pages/Contact';
-import Login from './pages/Login';
-import Admin from './pages/Admin';
 import Articles from './pages/Articles';
 import ArticleDetail from './pages/ArticleDetail';
 import MyOrders from './pages/MyOrders';
@@ -24,12 +22,29 @@ import ReturnsRefunds from './pages/ReturnsRefunds';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 
+// Lazy-load Admin (+ recharts) and Login so they're code-split
+// out of the main customer-facing bundle
+const Admin = React.lazy(() => import('./pages/Admin'));
+const Login = React.lazy(() => import('./pages/Login'));
+
 function ScrollToTop() {
   const { pathname } = useLocation();
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
   return null;
+}
+
+function LazyFallback() {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ width: 40, height: 40, border: '4px solid #e5e7eb', borderTopColor: '#8B5E3C', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
+        <p style={{ color: '#6b7280', fontSize: 14 }}>Loading…</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    </div>
+  );
 }
 
 function AppRoutes() {
@@ -39,10 +54,12 @@ function AppRoutes() {
 
   if (isAdmin || isLogin) {
     return (
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/admin" element={<Admin />} />
-      </Routes>
+      <Suspense fallback={<LazyFallback />}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/admin" element={<Admin />} />
+        </Routes>
+      </Suspense>
     );
   }
 
