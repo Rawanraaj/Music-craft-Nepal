@@ -414,6 +414,16 @@ export default function MyOrders() {
                         </button>
                       )}
 
+                      {order.status === 'Delivered' && (
+                        <button
+                          onClick={() => handleDownloadInvoice(order)}
+                          className="bg-white hover:bg-mcn-gray-50 text-mcn-charcoal border border-mcn-gray-300 font-bold text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-mcn-blue" />
+                          Download Invoice
+                        </button>
+                      )}
+
                       <button
                         onClick={() => handleMessageSeller(order)}
                         className="bg-white hover:bg-mcn-blue/5 text-mcn-blue border border-mcn-blue/30 font-bold text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
