@@ -392,7 +392,7 @@ export async function fetchInquiries(): Promise<WholesaleInquiry[]> {
 export async function createInquiry(inquiry: Omit<WholesaleInquiry, 'id' | 'date' | 'status'>): Promise<WholesaleInquiry> {
   const inquiryId = `WI-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('wholesale_inquiries')
     .insert([{
       id: inquiryId,
@@ -405,12 +405,15 @@ export async function createInquiry(inquiry: Omit<WholesaleInquiry, 'id' | 'date
       quantity: inquiry.quantity,
       message: inquiry.message,
       status: 'new',
-    }])
-    .select()
-    .single();
+    }]);
 
   if (error) throw error;
-  return mapDbInquiry(data);
+  return {
+    id: inquiryId,
+    ...inquiry,
+    status: 'new',
+    date: new Date().toISOString().split('T')[0],
+  };
 }
 
 export async function updateInquiryStatus(id: string, status: WholesaleInquiry['status']): Promise<void> {
