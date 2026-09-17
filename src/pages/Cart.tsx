@@ -152,7 +152,7 @@ export default function Cart() {
                 Proceed to Checkout
               </Link>
               <p className="text-xs text-mcn-gray-500 text-center mt-3">
-                Cash on Delivery available
+                Express Rider Delivery (Kathmandu Valley) · Pre-Payment via eSewa / Khalti
               </p>
             </div>
           </div>

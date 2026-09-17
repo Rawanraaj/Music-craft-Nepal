@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Product, Order, WholesaleInquiry, Review, Article, PromoBanner, ReturnRequest, ReturnReason, ReturnStatus, Conversation, Message } from '../types';
+import type { Product, Order, WholesaleInquiry, Review, Article, PromoBanner, ReturnRequest, ReturnReason, ReturnStatus, Conversation, Message, PaymentSettings } from '../types';
 
 // Helper to map DB Product to Frontend Product
 export function mapDbProduct(p: any, fallbackPrice?: number): Product {
@@ -280,7 +280,7 @@ export async function createOrder(order: Omit<Order, 'id' | 'date'>): Promise<Or
       phone: order.phone,
       address: order.address,
       total: order.total,
-      status: 'Placed',
+      status: order.status || 'Payment Pending',
       payment_method: order.paymentMethod,
       coupon_code: order.coupon_code || null,
     }]);
@@ -481,6 +481,33 @@ export async function updateSiteContent(key: string, value: any): Promise<void> 
     .upsert({ key, value });
 
   if (error) throw error;
+}
+
+// DIGITAL PAYMENT SETTINGS (eSewa / Khalti)
+export const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
+  esewa_id: '9841234567',
+  esewa_name: 'Music Craft Nepal Pvt. Ltd.',
+  esewa_qr_url: '',
+  khalti_id: '9841234567',
+  khalti_name: 'Music Craft Nepal Pvt. Ltd.',
+  khalti_qr_url: '',
+  instructions: 'Please pay the exact amount using eSewa or Khalti. Note your Transaction Code in the field below.',
+};
+
+export async function fetchPaymentSettings(): Promise<PaymentSettings> {
+  try {
+    const data = await fetchSiteContent('payment_settings');
+    if (data) {
+      return { ...DEFAULT_PAYMENT_SETTINGS, ...data };
+    }
+  } catch (err) {
+    console.error('Error fetching payment settings:', err);
+  }
+  return DEFAULT_PAYMENT_SETTINGS;
+}
+
+export async function updatePaymentSettings(settings: PaymentSettings): Promise<void> {
+  await updateSiteContent('payment_settings', settings);
 }
 
 // COUPONS API

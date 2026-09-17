@@ -53,7 +53,7 @@ const TRENDING_CATEGORIES = [
 ];
 
 const SERVICE_ICONS = [
-  { icon: BadgeCheck, title: 'Cash on Delivery', desc: 'Pay when you receive' },
+  { icon: BadgeCheck, title: 'Digital Pre-Payment', desc: 'eSewa & Khalti accepted' },
   { icon: HandHeart, title: 'Handcrafted', desc: 'Made by Nepali artisans' },
   { icon: Truck, title: 'Nationwide Delivery', desc: 'All 7 provinces covered' },
   { icon: ShieldCheck, title: 'Quality Checked', desc: 'Every instrument tested' },

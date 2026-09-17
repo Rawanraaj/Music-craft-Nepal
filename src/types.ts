@@ -44,14 +44,25 @@ export interface Order {
   address: string;
   items: CartItem[];
   total: number;
-  status: 'Placed' | 'Confirmed' | 'Shipped' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
+  status: 'Payment Pending' | 'Placed' | 'Confirmed' | 'Shipped' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
   date: string;
   paymentMethod: string;
   coupon_code?: string;
+  transaction_ref?: string;
   out_for_delivery_at?: string;
   delivery_confirmation_attempts?: number;
   delivery_confirmed_by_customer?: boolean;
   last_delivery_checkin_at?: string;
+}
+
+export interface PaymentSettings {
+  esewa_id: string;
+  esewa_name: string;
+  esewa_qr_url?: string;
+  khalti_id: string;
+  khalti_name: string;
+  khalti_qr_url?: string;
+  instructions?: string;
 }
 
 export interface Conversation {

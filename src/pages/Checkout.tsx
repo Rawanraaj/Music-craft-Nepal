@@ -1,16 +1,21 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCircle2, Lock, Truck, BadgeCheck, CreditCard } from 'lucide-react';
+import { CheckCircle2, Lock, Truck, CreditCard, AlertCircle, Clock, ShoppingBag } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { createOrder, validateCoupon, incrementCouponUsage } from '../lib/api';
+import PaymentModal from '../components/PaymentModal';
+import type { Order } from '../types';
 
 export default function Checkout() {
   const { items, totalPrice, clearCart } = useCart();
   const { user } = useAuth();
   const { showToast } = useToast();
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedWallet, setSelectedWallet] = useState<'eSewa' | 'Khalti'>('eSewa');
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -67,21 +72,41 @@ export default function Checkout() {
     setCouponError('');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Validate phone number format
+    const cleanPhone = formData.phone.trim().replace(/[\s-]/g, '');
+    if (cleanPhone.length < 7) {
+      showToast('Please enter a valid phone number so our rider can contact you.', 'error');
+      return;
+    }
+    // Open payment modal
+    setIsPaymentModalOpen(true);
+  };
+
+  const handleConfirmPayment = async (paymentData: { method: 'eSewa' | 'Khalti'; transactionRef: string }) => {
     setLoading(true);
     try {
-      await createOrder({
+      const paymentMethodString = paymentData.transactionRef
+        ? `${paymentData.method} (Ref: ${paymentData.transactionRef})`
+        : paymentData.method;
+
+      const fullAddress = formData.notes
+        ? `${formData.address}, ${formData.city}, ${formData.province} [Notes: ${formData.notes}]`
+        : `${formData.address}, ${formData.city}, ${formData.province}`;
+
+      const order = await createOrder({
         user_id: user?.id,
         customerName: formData.name,
         email: formData.email,
         phone: formData.phone,
-        address: `${formData.address}, ${formData.city}, ${formData.province}`,
+        address: fullAddress,
         items: items,
         total: grandTotal,
-        status: 'Placed',
-        paymentMethod: 'Cash on Delivery',
+        status: 'Payment Pending',
+        paymentMethod: paymentMethodString,
         coupon_code: appliedCoupon?.code || undefined,
+        transaction_ref: paymentData.transactionRef || undefined,
       });
 
       if (appliedCoupon) {
@@ -92,9 +117,12 @@ export default function Checkout() {
         }
       }
 
+      setCreatedOrder(order);
       setOrderPlaced(true);
+      setIsPaymentModalOpen(false);
       clearCart();
       window.scrollTo(0, 0);
+      showToast('Order placed successfully! Awaiting payment verification.', 'success');
     } catch (err: any) {
       console.error('Error placing order:', err);
       showToast(err?.message || 'Error placing order. Please try again.', 'error');
@@ -103,42 +131,58 @@ export default function Checkout() {
     }
   };
 
-  if (orderPlaced) {
+  if (orderPlaced && createdOrder) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16">
         <div className="text-center">
-          <div className="w-20 h-20 rounded-full bg-mcn-mint/20 flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 className="w-12 h-12 text-mcn-mint-dark" />
+          <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-6">
+            <Clock className="w-10 h-10 text-amber-700" />
           </div>
-          <h1 className="text-3xl font-extrabold text-mcn-charcoal mb-3">Order Placed!</h1>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 mb-3">
+            Status: Payment Pending
+          </span>
+          <h1 className="text-3xl font-extrabold text-mcn-charcoal mb-3">Order Received!</h1>
           <p className="text-sm text-mcn-gray-600 mb-2">
-            Thank you, {formData.name || 'valued customer'}! Your order has been received.
+            Thank you, {formData.name || 'valued customer'}! Your order has been registered.
           </p>
-          <p className="text-sm text-mcn-gray-600 mb-8">
-            We'll contact you at {formData.phone || 'your phone number'} to confirm delivery.
-          </p>
-          <div className="bg-mcn-gray-50 rounded-xl p-6 mb-8 text-left">
-            <div className="flex justify-between text-sm mb-2">
+          <div className="max-w-md mx-auto bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-900 mb-8 text-left leading-relaxed">
+            <span className="font-bold">Next Step — Payment Verification: </span>
+            Our team is verifying your <span className="font-bold">{createdOrder.paymentMethod}</span> transfer. Once confirmed, your instrument will be packed and dispatched via a trusted ride-hailing rider.
+          </div>
+          <div className="bg-mcn-gray-50 rounded-xl p-6 mb-8 text-left space-y-2.5 border border-mcn-gray-200">
+            <div className="flex justify-between text-sm">
               <span className="text-mcn-gray-600">Order Number</span>
-              <span className="font-bold text-mcn-charcoal">
-                #MCN-{Date.now().toString().slice(-6)}
+              <span className="font-mono font-bold text-mcn-charcoal">
+                {createdOrder.id}
               </span>
             </div>
-            <div className="flex justify-between text-sm mb-2">
+            <div className="flex justify-between text-sm">
               <span className="text-mcn-gray-600">Payment Method</span>
-              <span className="font-bold text-mcn-charcoal">Cash on Delivery</span>
+              <span className="font-bold text-mcn-charcoal">{createdOrder.paymentMethod}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-mcn-gray-600">Order Status</span>
+              <span className="font-bold text-amber-700">Payment Pending</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-mcn-gray-600">Estimated Delivery</span>
-              <span className="font-bold text-mcn-charcoal">3-5 business days</span>
+              <span className="font-bold text-mcn-charcoal">1-3 days (Kathmandu Valley)</span>
             </div>
           </div>
-          <Link
-            to="/shop"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-mcn-blue text-white font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors"
-          >
-            Continue Shopping
-          </Link>
+          <div className="flex flex-col sm:flex-row justify-center gap-3">
+            <Link
+              to="/my-orders"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-mcn-blue text-white font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors shadow-sm"
+            >
+              <ShoppingBag className="w-4 h-4" /> Track in My Orders
+            </Link>
+            <Link
+              to="/shop"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 border-2 border-mcn-gray-300 text-mcn-charcoal font-bold rounded-lg hover:bg-mcn-gray-100 transition-colors"
+            >
+              Continue Shopping
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -164,7 +208,7 @@ export default function Checkout() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         <h1 className="text-2xl md:text-3xl font-extrabold text-mcn-charcoal mb-6">Checkout</h1>
 
-        <form onSubmit={handleSubmit} className="grid lg:grid-cols-3 gap-8">
+        <form onSubmit={handleFormSubmit} className="grid lg:grid-cols-3 gap-8">
           {/* Form */}
           <div className="lg:col-span-2 space-y-6">
             {/* Contact */}
@@ -264,38 +308,70 @@ export default function Checkout() {
             {/* Payment */}
             <div className="bg-white rounded-xl border border-mcn-gray-200 p-6">
               <h2 className="text-lg font-extrabold text-mcn-charcoal mb-4">Payment Method</h2>
+              
+              {/* Ride-Hailing Notice */}
+              <div className="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-extrabold text-xs uppercase tracking-wider text-amber-950">Cash on Delivery Unavailable</p>
+                  <p className="text-amber-800 leading-relaxed">
+                    Cash on Delivery is currently unavailable due to no in-house delivery riders. Your order will be delivered by a trusted rider via ride-hailing apps. Mandatory digital pre-payment via eSewa or Khalti is required before dispatch.
+                  </p>
+                </div>
+              </div>
+
               <div className="space-y-3">
-                <label className="flex items-center gap-3 p-4 border-2 border-mcn-blue rounded-lg cursor-pointer bg-mcn-blue/5">
-                  <input type="radio" name="payment" defaultChecked className="accent-mcn-blue" />
-                  <BadgeCheck className="w-6 h-6 text-mcn-mint-dark" />
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-mcn-charcoal">Cash on Delivery</p>
-                    <p className="text-xs text-mcn-gray-500">Pay when your order arrives</p>
+                <label 
+                  onClick={() => setSelectedWallet('eSewa')}
+                  className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                    selectedWallet === 'eSewa'
+                      ? 'border-emerald-600 bg-emerald-50/50 shadow-xs'
+                      : 'border-mcn-gray-200 hover:border-mcn-gray-300'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="payment"
+                    checked={selectedWallet === 'eSewa'}
+                    onChange={() => setSelectedWallet('eSewa')}
+                    className="accent-emerald-600 w-4 h-4"
+                  />
+                  <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 shrink-0">
+                    <CreditCard className="w-5 h-5" />
                   </div>
-                  <span className="text-xs font-bold text-mcn-mint-dark bg-mcn-mint/10 px-2 py-1 rounded-full">
-                    ACTIVE
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-mcn-charcoal">eSewa Mobile Wallet</p>
+                    <p className="text-xs text-mcn-gray-500">Scan QR or transfer via eSewa app</p>
+                  </div>
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full">
+                    DIGITAL PRE-PAY
                   </span>
                 </label>
-                <label className="flex items-center gap-3 p-4 border-2 border-mcn-gray-200 rounded-lg cursor-not-allowed opacity-60">
-                  <input type="radio" name="payment" disabled className="accent-mcn-blue" />
-                  <CreditCard className="w-6 h-6 text-mcn-gray-400" />
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-mcn-charcoal">eSewa</p>
-                    <p className="text-xs text-mcn-gray-500">Digital wallet payment</p>
+
+                <label 
+                  onClick={() => setSelectedWallet('Khalti')}
+                  className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                    selectedWallet === 'Khalti'
+                      ? 'border-purple-600 bg-purple-50/50 shadow-xs'
+                      : 'border-mcn-gray-200 hover:border-mcn-gray-300'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="payment"
+                    checked={selectedWallet === 'Khalti'}
+                    onChange={() => setSelectedWallet('Khalti')}
+                    className="accent-purple-600 w-4 h-4"
+                  />
+                  <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-600 shrink-0">
+                    <CreditCard className="w-5 h-5" />
                   </div>
-                  <span className="text-xs font-bold text-mcn-gray-500 bg-mcn-gray-100 px-2 py-1 rounded-full">
-                    COMING SOON
-                  </span>
-                </label>
-                <label className="flex items-center gap-3 p-4 border-2 border-mcn-gray-200 rounded-lg cursor-not-allowed opacity-60">
-                  <input type="radio" name="payment" disabled className="accent-mcn-blue" />
-                  <CreditCard className="w-6 h-6 text-mcn-gray-400" />
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-mcn-charcoal">Khalti</p>
-                    <p className="text-xs text-mcn-gray-500">Digital wallet payment</p>
+                    <p className="text-sm font-bold text-mcn-charcoal">Khalti Digital Wallet</p>
+                    <p className="text-xs text-mcn-gray-500">Scan QR or transfer via Khalti app</p>
                   </div>
-                  <span className="text-xs font-bold text-mcn-gray-500 bg-mcn-gray-100 px-2 py-1 rounded-full">
-                    COMING SOON
+                  <span className="text-[11px] font-bold text-purple-700 bg-purple-100 px-2.5 py-1 rounded-full">
+                    DIGITAL PRE-PAY
                   </span>
                 </label>
               </div>
@@ -423,22 +499,40 @@ export default function Checkout() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 bg-mcn-blue text-white font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-12 bg-mcn-blue text-white font-bold rounded-lg hover:bg-mcn-blue-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {loading ? 'Processing...' : 'Place Order'}
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="w-4 h-4" />
+                    <span>Proceed to Digital Payment</span>
+                  </>
+                )}
               </button>
               <div className="flex items-center justify-center gap-4 mt-4 text-xs text-mcn-gray-500">
                 <span className="flex items-center gap-1">
-                  <Lock className="w-3.5 h-3.5" /> Secure
+                  <Lock className="w-3.5 h-3.5" /> Secure Digital Transfer
                 </span>
                 <span className="flex items-center gap-1">
-                  <Truck className="w-3.5 h-3.5" /> Fast Delivery
+                  <Truck className="w-3.5 h-3.5" /> Fast Rider Delivery
                 </span>
               </div>
             </div>
           </div>
         </form>
       </div>
+
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        onConfirmPayment={handleConfirmPayment}
+        totalAmount={grandTotal}
+        loading={loading}
+      />
     </div>
   );
 }

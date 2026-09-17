@@ -279,7 +279,7 @@ export default function Footer() {
             &copy; {new Date().getFullYear()} Music Craft Nepal. All rights reserved.
           </p>
           <div className="flex items-center gap-4 text-xs text-mcn-gray-500">
-            <span>Cash on Delivery</span>
+            <span>Digital Pre-Payment</span>
             <span className="text-mcn-gray-600">|</span>
             <span>eSewa</span>
             <span className="text-mcn-gray-600">|</span>

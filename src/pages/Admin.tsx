@@ -30,6 +30,9 @@ import {
   CheckCircle,
   XCircle,
   Eye,
+  QrCode,
+  Clock,
+  Check,
 } from 'lucide-react';
 import {
   registerPushNotifications,
@@ -83,15 +86,19 @@ import {
   deleteConversation,
   fetchAllReturnRequests,
   updateReturnRequestStatus,
+  fetchPaymentSettings,
+  updatePaymentSettings,
+  DEFAULT_PAYMENT_SETTINGS,
 } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { CATEGORIES } from '../types';
-import type { Product, Order, WholesaleInquiry, Article, PromoBanner, Conversation, Message, ReturnRequest } from '../types';
+import type { Product, Order, WholesaleInquiry, Article, PromoBanner, Conversation, Message, ReturnRequest, PaymentSettings } from '../types';
 
 type AdminTab = 'overview' | 'products' | 'orders' | 'returns' | 'inquiries' | 'messages' | 'coupons' | 'articles' | 'settings';
 
 const STATUS_COLORS: Record<string, string> = {
   // Orders
+  'Payment Pending': 'bg-amber-100 text-amber-800 border border-amber-300',
   Placed: 'bg-yellow-100 text-yellow-700',
   Confirmed: 'bg-blue-100 text-blue-700',
   Shipped: 'bg-purple-100 text-purple-700',
@@ -134,6 +141,13 @@ export default function Admin() {
   const [coupons, setCoupons] = useState<any[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+
+  // Orders Admin State
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string>('All');
+
+  // Digital Payment Settings State
+  const [cmsPaymentSettings, setCmsPaymentSettings] = useState<PaymentSettings>(DEFAULT_PAYMENT_SETTINGS);
+  const [uploadingQrProvider, setUploadingQrProvider] = useState<'eSewa' | 'Khalti' | null>(null);
 
   // Return Requests Admin State
   const [returnStatusFilter, setReturnStatusFilter] = useState<string>('All');
@@ -457,7 +471,7 @@ export default function Admin() {
 
   const loadCmsData = async () => {
     try {
-      const [slides, aboutCopy, aboutImg, contact, promoSectionToggle, bizInfo, deliveryDisc, grievanceOff, returnPickDisc] = await Promise.all([
+      const [slides, aboutCopy, aboutImg, contact, promoSectionToggle, bizInfo, deliveryDisc, grievanceOff, returnPickDisc, paymentSettingsData] = await Promise.all([
         fetchSiteContent('hero_slides'),
         fetchSiteContent('about_us_copy'),
         fetchSiteContent('about_story_image'),
@@ -467,7 +481,11 @@ export default function Admin() {
         fetchSiteContent('delivery_availability_disclosure'),
         fetchSiteContent('grievance_officer'),
         fetchSiteContent('return_pickup_disclosure'),
+        fetchPaymentSettings(),
       ]);
+      if (paymentSettingsData) {
+        setCmsPaymentSettings(paymentSettingsData);
+      }
       if (promoSectionToggle !== null && promoSectionToggle !== undefined) {
         setPromoSectionEnabled(promoSectionToggle !== false);
       }
@@ -544,7 +562,7 @@ export default function Admin() {
   const salesData = useMemo(() => {
     const daily: Record<string, number> = {};
     orders
-      .filter((o) => o.status !== 'Cancelled')
+      .filter((o) => o.status !== 'Cancelled' && o.status !== 'Payment Pending')
       .forEach((o) => {
         const d = o.date ? o.date.split('T')[0] : 'Unknown';
         daily[d] = (daily[d] || 0) + o.total;
@@ -557,7 +575,7 @@ export default function Admin() {
   const categoryData = useMemo(() => {
     const sales: Record<string, number> = {};
     orders
-      .filter((o) => o.status !== 'Cancelled')
+      .filter((o) => o.status !== 'Cancelled' && o.status !== 'Payment Pending')
       .forEach((o) => {
         o.items.forEach((item) => {
           if (item.product) {
@@ -595,9 +613,11 @@ export default function Admin() {
 
   // Overview calculations
   const totalRevenue = orders
-    .filter((o) => o.status !== 'Cancelled')
+    .filter((o) => o.status !== 'Cancelled' && o.status !== 'Payment Pending')
     .reduce((sum, o) => sum + o.total, 0);
-  const pendingOrders = orders.filter((o) => o.status === 'Placed' || o.status === 'Confirmed' || o.status === 'Shipped' || o.status === 'Out for Delivery').length;
+  const pendingPaymentOrders = orders.filter((o) => o.status === 'Payment Pending').length;
+  const activeFulfillmentOrders = orders.filter((o) => o.status === 'Placed' || o.status === 'Confirmed' || o.status === 'Shipped' || o.status === 'Out for Delivery').length;
+  const pendingOrders = activeFulfillmentOrders;
   const pendingReturns = returnRequests.filter((r) => r.status === 'Pending').length;
   const newInquiries = inquiries.filter((i) => i.status === 'new').length;
 
@@ -1074,13 +1094,33 @@ export default function Admin() {
         updateSiteContent('delivery_availability_disclosure', cmsDeliveryDisclosure),
         updateSiteContent('grievance_officer', cmsGrievanceOfficer),
         updateSiteContent('return_pickup_disclosure', cmsReturnPickupDisclosure),
+        updatePaymentSettings(cmsPaymentSettings),
       ]);
-      showToast('CMS settings saved successfully!', 'success');
+      showToast('Settings & Payment QR details saved successfully!', 'success');
     } catch (err) {
       console.error('Failed to save settings:', err);
       showToast('Failed to save settings.', 'error');
     } finally {
       setSettingsLoading(false);
+    }
+  };
+
+  const handleQrImageUpload = async (provider: 'eSewa' | 'Khalti', e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    setUploadingQrProvider(provider);
+    try {
+      const url = await uploadProductImage(e.target.files[0]);
+      if (provider === 'eSewa') {
+        setCmsPaymentSettings((prev) => ({ ...prev, esewa_qr_url: url }));
+      } else {
+        setCmsPaymentSettings((prev) => ({ ...prev, khalti_qr_url: url }));
+      }
+      showToast(`${provider} QR code image uploaded successfully!`, 'success');
+    } catch (err: any) {
+      console.error(`Failed to upload ${provider} QR image:`, err);
+      showToast(`Failed to upload ${provider} QR image.`, 'error');
+    } finally {
+      setUploadingQrProvider(null);
     }
   };
 
@@ -1246,11 +1286,33 @@ export default function Admin() {
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? { ...o, status } : o))
       );
-      showToast('Order status updated.', 'success');
+      showToast(`Order ${orderId} status updated to ${status}.`, 'success');
     } catch (err) {
       console.error('Failed to update order status:', err);
       showToast('Failed to update order status.', 'error');
     }
+  };
+
+  const handleCancelUnpaidOrder = (orderId: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Cancel Unpaid Order',
+      message: `Are you sure you want to cancel order ${orderId}? This will mark the order as Cancelled.`,
+      onConfirm: async () => {
+        try {
+          await updateOrderStatus(orderId, 'Cancelled');
+          setOrders((prev) =>
+            prev.map((o) => (o.id === orderId ? { ...o, status: 'Cancelled' } : o))
+          );
+          showToast(`Order ${orderId} marked as Cancelled.`, 'success');
+        } catch (err) {
+          console.error('Failed to cancel order:', err);
+          showToast('Failed to cancel order.', 'error');
+        } finally {
+          setConfirmModal(null);
+        }
+      },
+    });
   };
 
   const handleUpdateInquiryStatus = async (inquiryId: string, status: WholesaleInquiry['status']) => {
@@ -1327,9 +1389,9 @@ export default function Admin() {
           >
             <item.icon className="w-5 h-5" />
             {item.label}
-            {item.id === 'orders' && pendingOrders > 0 && (
-              <span className="ml-auto bg-mcn-red text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                {pendingOrders}
+            {item.id === 'orders' && (pendingPaymentOrders + pendingOrders > 0) && (
+              <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full ${pendingPaymentOrders > 0 ? 'bg-amber-500 text-white' : 'bg-mcn-red text-white'}`}>
+                {pendingPaymentOrders > 0 ? `${pendingPaymentOrders} pending pay` : pendingOrders}
               </span>
             )}
             {item.id === 'returns' && pendingReturns > 0 && (
@@ -1439,10 +1501,11 @@ export default function Admin() {
             {activeTab === 'overview' && (
               <div className="space-y-6">
                 {/* Stats */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                   {[
-                    { icon: DollarSign, label: 'Total Revenue', value: `Rs. ${totalRevenue.toLocaleString()}`, color: 'bg-mcn-mint/10 text-mcn-mint-dark' },
-                    { icon: ShoppingCart, label: 'Pending Orders', value: pendingOrders, color: 'bg-mcn-blue/10 text-mcn-blue' },
+                    { icon: DollarSign, label: 'Verified Revenue', value: `Rs. ${totalRevenue.toLocaleString()}`, color: 'bg-mcn-mint/10 text-mcn-mint-dark' },
+                    { icon: Clock, label: 'Payment Pending', value: pendingPaymentOrders, color: 'bg-amber-100 text-amber-800' },
+                    { icon: ShoppingCart, label: 'Active Orders', value: activeFulfillmentOrders, color: 'bg-mcn-blue/10 text-mcn-blue' },
                     { icon: Package, label: 'Products Listed', value: products.length, color: 'bg-purple-100 text-purple-600' },
                     { icon: Users, label: 'Wholesale Inquiries', value: inquiries.length, color: 'bg-orange-100 text-orange-600' },
                   ].map((stat) => (
@@ -1671,8 +1734,21 @@ export default function Admin() {
             {/* Orders Section */}
             {activeTab === 'orders' && (
               <div className="bg-white rounded-xl border border-mcn-gray-200 overflow-hidden">
-                <div className="p-5 border-b border-mcn-gray-200 flex items-center justify-between">
-                  <h2 className="text-base font-extrabold text-mcn-charcoal">All Orders ({orders.length})</h2>
+                <div className="p-5 border-b border-mcn-gray-200 flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-base font-extrabold text-mcn-charcoal flex items-center gap-2">
+                      All Orders ({orders.length})
+                      {pendingPaymentOrders > 0 && (
+                        <span className="bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-amber-700" />
+                          {pendingPaymentOrders} Payment Pending
+                        </span>
+                      )}
+                    </h2>
+                    <p className="text-xs text-mcn-gray-500 mt-0.5">
+                      Verify customer eSewa/Khalti digital pre-payments before confirming orders for delivery.
+                    </p>
+                  </div>
                   <button
                     onClick={exportOrdersCSV}
                     className="flex items-center gap-2 px-3 py-1.5 border-2 border-mcn-gray-300 text-mcn-charcoal text-xs font-bold rounded-lg hover:bg-mcn-gray-100 transition-colors"
@@ -1681,6 +1757,45 @@ export default function Admin() {
                     Export CSV
                   </button>
                 </div>
+
+                {/* Status Filter Tabs */}
+                <div className="p-4 border-b border-mcn-gray-200 bg-mcn-gray-50/50 flex flex-wrap items-center gap-2">
+                  {[
+                    { label: 'All', value: 'All', count: orders.length },
+                    { label: 'Payment Pending', value: 'Payment Pending', count: orders.filter((o) => o.status === 'Payment Pending').length, badgeColor: 'bg-amber-100 text-amber-800' },
+                    { label: 'Placed', value: 'Placed', count: orders.filter((o) => o.status === 'Placed').length },
+                    { label: 'Confirmed', value: 'Confirmed', count: orders.filter((o) => o.status === 'Confirmed').length },
+                    { label: 'Shipped', value: 'Shipped', count: orders.filter((o) => o.status === 'Shipped').length },
+                    { label: 'Out for Delivery', value: 'Out for Delivery', count: orders.filter((o) => o.status === 'Out for Delivery').length },
+                    { label: 'Delivered', value: 'Delivered', count: orders.filter((o) => o.status === 'Delivered').length },
+                    { label: 'Cancelled', value: 'Cancelled', count: orders.filter((o) => o.status === 'Cancelled').length },
+                  ].map((tab) => {
+                    const isActive = orderStatusFilter === tab.value;
+                    return (
+                      <button
+                        key={tab.value}
+                        onClick={() => setOrderStatusFilter(tab.value)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
+                          isActive
+                            ? 'bg-mcn-blue text-white shadow-sm'
+                            : 'bg-white text-mcn-charcoal border border-mcn-gray-200 hover:bg-mcn-gray-100'
+                        }`}
+                      >
+                        {tab.label}
+                        <span
+                          className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                            isActive
+                              ? 'bg-white/20 text-white'
+                              : tab.badgeColor || 'bg-mcn-gray-100 text-mcn-gray-600'
+                          }`}
+                        >
+                          {tab.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
@@ -1689,45 +1804,118 @@ export default function Admin() {
                         <th className="text-left px-5 py-3">Customer</th>
                         <th className="text-left px-5 py-3 hidden md:table-cell">Items</th>
                         <th className="text-left px-5 py-3 hidden lg:table-cell">Date</th>
+                        <th className="text-left px-5 py-3">Payment</th>
                         <th className="text-left px-5 py-3">Total</th>
-                        <th className="text-left px-5 py-3">Status</th>
+                        <th className="text-left px-5 py-3">Status & Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {orders.map((order) => (
-                        <tr key={order.id} className="border-t border-mcn-gray-100 hover:bg-mcn-gray-50 transition-colors">
-                          <td className="px-5 py-3 text-sm font-bold text-mcn-charcoal">{order.id}</td>
-                          <td className="px-5 py-3">
-                            <p className="text-sm font-bold text-mcn-charcoal">{order.customerName}</p>
-                            <p className="text-xs text-mcn-gray-500">{order.email}</p>
-                          </td>
-                          <td className="px-5 py-3 text-sm text-mcn-gray-600 hidden md:table-cell">
-                            {order.items.length} item(s)
-                          </td>
-                          <td className="px-5 py-3 text-sm text-mcn-gray-500 hidden lg:table-cell">{order.date}</td>
-                          <td className="px-5 py-3 text-sm font-bold text-mcn-charcoal">Rs. {order.total.toLocaleString()}</td>
-                          <td className="px-5 py-3">
-                            <select
-                              value={order.status}
-                              onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value as any)}
-                              className={`text-xs font-bold px-2 py-1 rounded-full ${STATUS_COLORS[order.status] || 'bg-gray-100 text-gray-700'} focus:outline-none`}
-                            >
-                              <option value="Placed">Placed</option>
-                              <option value="Confirmed">Confirmed</option>
-                              <option value="Shipped">Shipped</option>
-                              <option value="Out for Delivery">Out for Delivery</option>
-                              <option value="Delivered">Delivered</option>
-                              <option value="Cancelled">Cancelled</option>
-                            </select>
+                      {orders
+                        .filter((order) => orderStatusFilter === 'All' || order.status === orderStatusFilter)
+                        .map((order) => {
+                          const isPaymentPending = order.status === 'Payment Pending';
+                          const orderTime = new Date(order.date || order.created_at || Date.now()).getTime();
+                          const elapsedMinutes = Math.max(0, Math.floor((Date.now() - orderTime) / 60000));
+                          const isOverdue = isPaymentPending && elapsedMinutes >= 60;
 
-                            {order.status === 'Out for Delivery' && (order.delivery_confirmation_attempts || 0) >= 6 && !order.delivery_confirmed_by_customer && (
-                              <div className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2 py-1 rounded-lg">
-                                ⚠️ Awaiting delivery confirmation — no customer response
-                              </div>
-                            )}
+                          return (
+                            <tr
+                              key={order.id}
+                              className={`border-t border-mcn-gray-100 hover:bg-mcn-gray-50 transition-colors ${
+                                isPaymentPending ? 'bg-amber-50/40 border-l-4 border-l-amber-500' : ''
+                              }`}
+                            >
+                              <td className="px-5 py-3 text-sm font-bold text-mcn-charcoal">
+                                <div>{order.id}</div>
+                                {isPaymentPending && (
+                                  <span className="inline-block mt-1 text-[10px] font-semibold text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded">
+                                    ⏳ {elapsedMinutes}m ago
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-5 py-3">
+                                <p className="text-sm font-bold text-mcn-charcoal">{order.customerName}</p>
+                                <p className="text-xs text-mcn-gray-500">{order.email}</p>
+                                {order.phone && <p className="text-xs text-mcn-gray-400">{order.phone}</p>}
+                              </td>
+                              <td className="px-5 py-3 text-sm text-mcn-gray-600 hidden md:table-cell">
+                                {order.items.length} item(s)
+                              </td>
+                              <td className="px-5 py-3 text-sm text-mcn-gray-500 hidden lg:table-cell">{order.date}</td>
+                              <td className="px-5 py-3">
+                                <div className="text-xs font-bold text-mcn-charcoal">
+                                  {order.payment_method || 'Pre-payment'}
+                                </div>
+                                {order.transaction_ref && (
+                                  <div className="text-[11px] font-mono font-semibold text-mcn-blue bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded mt-0.5 inline-block">
+                                    Ref: {order.transaction_ref}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-5 py-3 text-sm font-bold text-mcn-charcoal">Rs. {order.total.toLocaleString()}</td>
+                              <td className="px-5 py-3">
+                                <div className="flex flex-col gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <select
+                                      value={order.status}
+                                      onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value as any)}
+                                      className={`text-xs font-bold px-2 py-1 rounded-full ${STATUS_COLORS[order.status] || 'bg-gray-100 text-gray-700'} focus:outline-none`}
+                                    >
+                                      <option value="Payment Pending">Payment Pending</option>
+                                      <option value="Placed">Placed</option>
+                                      <option value="Confirmed">Confirmed</option>
+                                      <option value="Shipped">Shipped</option>
+                                      <option value="Out for Delivery">Out for Delivery</option>
+                                      <option value="Delivered">Delivered</option>
+                                      <option value="Cancelled">Cancelled</option>
+                                    </select>
+
+                                    {isOverdue && (
+                                      <span
+                                        className="inline-flex items-center gap-1 text-[11px] font-extrabold text-red-700 bg-red-100 border border-red-300 px-2 py-0.5 rounded-md animate-pulse"
+                                        title="Payment pending for over 60 minutes"
+                                      >
+                                        ⏰ Overdue (&gt;60m)
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {isPaymentPending && (
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <button
+                                        onClick={() => handleUpdateOrderStatus(order.id, 'Confirmed')}
+                                        className="inline-flex items-center gap-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-lg transition-colors shadow-sm"
+                                        title="Verify merchant wallet and mark order as Confirmed"
+                                      >
+                                        <Check className="w-3.5 h-3.5" /> Verify & Confirm
+                                      </button>
+                                      <button
+                                        onClick={() => handleCancelUnpaidOrder(order.id)}
+                                        className="inline-flex items-center gap-1 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 px-2 py-1 rounded-lg transition-colors"
+                                        title="Cancel order due to non-payment"
+                                      >
+                                        <X className="w-3.5 h-3.5" /> Cancel (Unpaid)
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {order.status === 'Out for Delivery' && (order.delivery_confirmation_attempts || 0) >= 6 && !order.delivery_confirmed_by_customer && (
+                                    <div className="mt-1 flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2 py-1 rounded-lg">
+                                      ⚠️ Awaiting delivery confirmation — no customer response
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      {orders.filter((order) => orderStatusFilter === 'All' || order.status === orderStatusFilter).length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="px-5 py-8 text-center text-xs text-mcn-gray-400">
+                            No orders found under "{orderStatusFilter}".
                           </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2871,6 +3059,187 @@ export default function Admin() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* Digital Pre-Payment Settings (eSewa & Khalti) */}
+                  <div className="bg-white rounded-xl border border-mcn-gray-200 p-6 space-y-6">
+                    <div className="flex items-center justify-between border-b border-mcn-gray-100 pb-3">
+                      <div>
+                        <h2 className="text-lg font-extrabold text-mcn-charcoal flex items-center gap-2">
+                          <QrCode className="w-5 h-5 text-mcn-blue" />
+                          Digital Pre-Payment Settings (eSewa & Khalti)
+                        </h2>
+                        <p className="text-xs text-mcn-gray-500 mt-1">
+                          Configure merchant IDs, recipient names, instructions, and QR code images shown to customers at checkout.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-6">
+                      {/* eSewa Configuration */}
+                      <div className="border border-emerald-200 rounded-xl p-4 bg-emerald-50/30 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded">
+                            eSewa Details
+                          </span>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">eSewa ID / Mobile Number</label>
+                          <input
+                            type="text"
+                            value={cmsPaymentSettings.esewa_id}
+                            onChange={(e) => setCmsPaymentSettings((prev) => ({ ...prev, esewa_id: e.target.value }))}
+                            placeholder="e.g. 9800000000"
+                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none bg-white"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Account / Merchant Name</label>
+                          <input
+                            type="text"
+                            value={cmsPaymentSettings.esewa_name}
+                            onChange={(e) => setCmsPaymentSettings((prev) => ({ ...prev, esewa_name: e.target.value }))}
+                            placeholder="e.g. Music Craft Nepal"
+                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none bg-white"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">eSewa QR Code Image</label>
+                          <div className="flex items-center gap-3">
+                            {cmsPaymentSettings.esewa_qr_url ? (
+                              <div className="w-16 h-16 rounded-lg border border-mcn-gray-200 overflow-hidden bg-white flex-shrink-0">
+                                <img
+                                  src={cmsPaymentSettings.esewa_qr_url}
+                                  alt="eSewa QR"
+                                  className="w-full h-full object-contain"
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-16 h-16 rounded-lg border-2 border-dashed border-mcn-gray-300 flex items-center justify-center text-mcn-gray-400 text-[10px] text-center flex-shrink-0">
+                                No QR
+                              </div>
+                            )}
+                            <div className="flex-1">
+                              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-mcn-gray-300 text-xs font-bold text-mcn-charcoal rounded-lg cursor-pointer hover:bg-mcn-gray-50 transition-colors shadow-sm">
+                                <Upload className="w-3.5 h-3.5 text-mcn-blue" />
+                                {uploadingQrProvider === 'eSewa' ? 'Uploading...' : 'Upload QR Image'}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  disabled={uploadingQrProvider !== null}
+                                  onChange={(e) => handleQrImageUpload('eSewa', e)}
+                                />
+                              </label>
+                              <input
+                                type="text"
+                                value={cmsPaymentSettings.esewa_qr_url}
+                                onChange={(e) => setCmsPaymentSettings((prev) => ({ ...prev, esewa_qr_url: e.target.value }))}
+                                placeholder="Or paste image URL"
+                                className="w-full h-8 mt-1.5 px-2.5 rounded-lg border border-mcn-gray-300 text-[11px] focus:border-mcn-blue focus:outline-none bg-white"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Khalti Configuration */}
+                      <div className="border border-purple-200 rounded-xl p-4 bg-purple-50/30 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-extrabold text-purple-800 uppercase tracking-wider bg-purple-100 px-2 py-0.5 rounded">
+                            Khalti Details
+                          </span>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Khalti ID / Mobile Number</label>
+                          <input
+                            type="text"
+                            value={cmsPaymentSettings.khalti_id}
+                            onChange={(e) => setCmsPaymentSettings((prev) => ({ ...prev, khalti_id: e.target.value }))}
+                            placeholder="e.g. 9800000000"
+                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none bg-white"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Account / Merchant Name</label>
+                          <input
+                            type="text"
+                            value={cmsPaymentSettings.khalti_name}
+                            onChange={(e) => setCmsPaymentSettings((prev) => ({ ...prev, khalti_name: e.target.value }))}
+                            placeholder="e.g. Music Craft Nepal"
+                            className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none bg-white"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Khalti QR Code Image</label>
+                          <div className="flex items-center gap-3">
+                            {cmsPaymentSettings.khalti_qr_url ? (
+                              <div className="w-16 h-16 rounded-lg border border-mcn-gray-200 overflow-hidden bg-white flex-shrink-0">
+                                <img
+                                  src={cmsPaymentSettings.khalti_qr_url}
+                                  alt="Khalti QR"
+                                  className="w-full h-full object-contain"
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-16 h-16 rounded-lg border-2 border-dashed border-mcn-gray-300 flex items-center justify-center text-mcn-gray-400 text-[10px] text-center flex-shrink-0">
+                                No QR
+                              </div>
+                            )}
+                            <div className="flex-1">
+                              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-mcn-gray-300 text-xs font-bold text-mcn-charcoal rounded-lg cursor-pointer hover:bg-mcn-gray-50 transition-colors shadow-sm">
+                                <Upload className="w-3.5 h-3.5 text-mcn-blue" />
+                                {uploadingQrProvider === 'Khalti' ? 'Uploading...' : 'Upload QR Image'}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  disabled={uploadingQrProvider !== null}
+                                  onChange={(e) => handleQrImageUpload('Khalti', e)}
+                                />
+                              </label>
+                              <input
+                                type="text"
+                                value={cmsPaymentSettings.khalti_qr_url}
+                                onChange={(e) => setCmsPaymentSettings((prev) => ({ ...prev, khalti_qr_url: e.target.value }))}
+                                placeholder="Or paste image URL"
+                                className="w-full h-8 mt-1.5 px-2.5 rounded-lg border border-mcn-gray-300 text-[11px] focus:border-mcn-blue focus:outline-none bg-white"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Customer Instructions */}
+                    <div className="grid sm:grid-cols-2 gap-4 pt-2">
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Customer Instructions (English)</label>
+                        <textarea
+                          rows={3}
+                          value={cmsPaymentSettings.instructions_en}
+                          onChange={(e) => setCmsPaymentSettings((prev) => ({ ...prev, instructions_en: e.target.value }))}
+                          placeholder="Instructions displayed on the payment modal..."
+                          className="w-full p-2.5 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-mcn-charcoal mb-1">Customer Instructions (Nepali / नेपाली)</label>
+                        <textarea
+                          rows={3}
+                          value={cmsPaymentSettings.instructions_ne}
+                          onChange={(e) => setCmsPaymentSettings((prev) => ({ ...prev, instructions_ne: e.target.value }))}
+                          placeholder="भुक्तानी निर्देशन नेपालीमा..."
+                          className="w-full p-2.5 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none"
+                        />
+                      </div>
                     </div>
                   </div>
 

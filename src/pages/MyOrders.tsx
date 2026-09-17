@@ -9,7 +9,7 @@ import { ShoppingBag, ChevronRight, XCircle, Clock, Truck, MessageSquare, CheckC
 import { Link, useNavigate } from 'react-router-dom';
 import { registerPushNotifications, getNotificationPermission } from '../lib/pushNotifications';
 
-const STATUS_STEPS = ['Placed', 'Confirmed', 'Shipped', 'Out for Delivery', 'Delivered'];
+const STATUS_STEPS = ['Payment Pending', 'Confirmed', 'Shipped', 'Out for Delivery', 'Delivered'];
 
 export default function MyOrders() {
   const { user, loading: authLoading } = useAuth();
@@ -129,11 +129,14 @@ export default function MyOrders() {
       .catch(() => {});
   }, []);
 
-  const getStepIndex = (status: string) => STATUS_STEPS.indexOf(status);
+  const getStepIndex = (status: string) => {
+    if (status === 'Placed') return 0;
+    return STATUS_STEPS.indexOf(status);
+  };
 
-  // Extend cancellation policy window: allow cancellation any time BEFORE shipped (status is Placed or Confirmed)
+  // Allow cancellation on Payment Pending, Placed, or Confirmed (any time BEFORE shipped)
   const isCancelable = (_orderDateStr: string, status: string) => {
-    return status === 'Placed' || status === 'Confirmed';
+    return status === 'Payment Pending' || status === 'Placed' || status === 'Confirmed';
   };
 
   const handleDownloadInvoice = (order: Order) => {
@@ -382,6 +385,10 @@ export default function MyOrders() {
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-50 border border-red-200 text-mcn-red">
                           <XCircle className="w-3.5 h-3.5" /> Cancelled
                         </span>
+                      ) : order.status === 'Payment Pending' ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 border border-amber-300 text-amber-800">
+                          <Clock className="w-3.5 h-3.5 animate-pulse" /> Payment Pending
+                        </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 border border-blue-200 text-blue-700">
                           <Clock className="w-3.5 h-3.5" /> {order.status}
@@ -442,6 +449,33 @@ export default function MyOrders() {
                       )}
                     </div>
                   </div>
+
+                  {/* Payment Pending Alert Banner */}
+                  {order.status === 'Payment Pending' && (
+                    <div className="p-4 md:p-5 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border-b border-amber-200 flex items-start gap-3.5">
+                      <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center shrink-0 text-amber-800 mt-0.5 shadow-sm">
+                        <Clock className="w-5 h-5 animate-pulse" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-extrabold text-amber-900 flex items-center gap-2">
+                          Digital Pre-Payment Verification In Progress
+                          <span className="text-[10px] font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
+                            Under Review
+                          </span>
+                        </h4>
+                        <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                          We've recorded your order and payment reference. Our team is verifying the transaction in our eSewa / Khalti merchant account. Once verified, your order will transition to <strong>Confirmed</strong> and be prepared for delivery via ride-hailing rider.
+                        </p>
+                        {order.payment_method && (
+                          <div className="mt-2.5 flex items-center gap-2 flex-wrap text-xs text-amber-900">
+                            <span className="font-semibold bg-white/80 border border-amber-200 px-2.5 py-1 rounded-md">
+                              Method: {order.payment_method}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Return Request Status Banner & Stepper for Delivered Orders */}
                   {(() => {
@@ -655,7 +689,7 @@ export default function MyOrders() {
                     </div>
                     <div>
                       <span className="font-bold text-mcn-charcoal">Payment: </span>
-                      {order.paymentMethod === 'cod' || order.paymentMethod === 'Cash on Delivery' || !order.paymentMethod ? 'Cash on Delivery' : order.paymentMethod}
+                      {order.payment_method || order.paymentMethod || 'Digital Pre-Payment'}
                       {order.coupon_code && (
                         <span className="ml-2 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-mono font-bold text-xs">
                           COUPON: {order.coupon_code}
