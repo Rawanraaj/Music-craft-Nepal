@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Package, CheckCircle2, Truck, Percent, Headphones } from 'lucide-react';
+import { Package, CheckCircle2, Truck, Percent, Headphones, AlertCircle } from 'lucide-react';
 import { createInquiry } from '../lib/api';
 import { useToast } from '../context/ToastContext';
 import { CATEGORIES } from '../types';
@@ -15,6 +15,7 @@ export default function Wholesale() {
   const { showToast } = useToast();
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
     businessName: '',
     contactName: '',
@@ -26,19 +27,73 @@ export default function Wholesale() {
     message: '',
   });
 
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.businessName.trim()) {
+      newErrors.businessName = 'Business name is required.';
+    }
+
+    if (!formData.contactName.trim()) {
+      newErrors.contactName = 'Contact person name is required.';
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email address is required.';
+    } else if (!emailRegex.test(formData.email.trim())) {
+      newErrors.email = 'Please enter a valid email address.';
+    }
+
+    // Phone validation: Nepal mobile / landline or standard phone (7-15 digits)
+    const cleanPhone = formData.phone.trim().replace(/[\s\-()]/g, '');
+    const nepalPhoneRegex = /^(\+?977)?[9][678]\d{8}$|^(\+?977)?0[1-9]\d{6,7}$/;
+    const generalPhoneRegex = /^\+?[0-9]{7,15}$/;
+
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Phone number is required.';
+    } else if (!nepalPhoneRegex.test(cleanPhone) && !generalPhoneRegex.test(cleanPhone)) {
+      newErrors.phone = 'Please enter a valid phone number (e.g. 9841234567 or +977-9841234567).';
+    }
+
+    // City validation
+    if (!formData.city.trim()) {
+      newErrors.city = 'City is required.';
+    }
+
+    // Quantity validation: positive integer with sensible wholesale minimum (10 units)
+    const qtyTrim = formData.quantity.trim();
+    const qtyNum = Number(qtyTrim);
+    if (!qtyTrim) {
+      newErrors.quantity = 'Expected quantity is required.';
+    } else if (!Number.isInteger(qtyNum) || qtyNum <= 0) {
+      newErrors.quantity = 'Quantity must be a positive whole number.';
+    } else if (qtyNum < 10) {
+      newErrors.quantity = 'Wholesale orders require a minimum quantity of 10 units.';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateForm()) {
+      showToast('Please correct the errors in the form before submitting.', 'error');
+      return;
+    }
+
     setLoading(true);
     try {
       await createInquiry({
-        businessName: formData.businessName,
-        contactName: formData.contactName,
-        email: formData.email,
-        phone: formData.phone,
-        city: formData.city,
+        businessName: formData.businessName.trim(),
+        contactName: formData.contactName.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        city: formData.city.trim(),
         products: formData.products,
-        quantity: formData.quantity || '10-20 units',
-        message: formData.message,
+        quantity: `${Number(formData.quantity.trim())} units`,
+        message: formData.message.trim(),
       });
       setSubmitted(true);
       window.scrollTo(0, 0);
@@ -141,9 +196,20 @@ export default function Wholesale() {
                     required
                     type="text"
                     value={formData.businessName}
-                    onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
-                    className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                    onChange={(e) => {
+                      setFormData({ ...formData, businessName: e.target.value });
+                      if (errors.businessName) setErrors((prev) => ({ ...prev, businessName: '' }));
+                    }}
+                    className={`w-full h-11 px-3 rounded-lg border-2 ${
+                      errors.businessName ? 'border-red-400 bg-red-50/10 focus:border-red-500' : 'border-mcn-gray-300 focus:border-mcn-blue'
+                    } focus:outline-none text-sm`}
                   />
+                  {errors.businessName && (
+                    <p className="text-xs text-red-600 mt-1 font-semibold flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {errors.businessName}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-mcn-charcoal mb-1">Contact Person *</label>
@@ -151,9 +217,20 @@ export default function Wholesale() {
                     required
                     type="text"
                     value={formData.contactName}
-                    onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
-                    className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                    onChange={(e) => {
+                      setFormData({ ...formData, contactName: e.target.value });
+                      if (errors.contactName) setErrors((prev) => ({ ...prev, contactName: '' }));
+                    }}
+                    className={`w-full h-11 px-3 rounded-lg border-2 ${
+                      errors.contactName ? 'border-red-400 bg-red-50/10 focus:border-red-500' : 'border-mcn-gray-300 focus:border-mcn-blue'
+                    } focus:outline-none text-sm`}
                   />
+                  {errors.contactName && (
+                    <p className="text-xs text-red-600 mt-1 font-semibold flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {errors.contactName}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
@@ -163,9 +240,20 @@ export default function Wholesale() {
                     required
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                    onChange={(e) => {
+                      setFormData({ ...formData, email: e.target.value });
+                      if (errors.email) setErrors((prev) => ({ ...prev, email: '' }));
+                    }}
+                    className={`w-full h-11 px-3 rounded-lg border-2 ${
+                      errors.email ? 'border-red-400 bg-red-50/10 focus:border-red-500' : 'border-mcn-gray-300 focus:border-mcn-blue'
+                    } focus:outline-none text-sm`}
                   />
+                  {errors.email && (
+                    <p className="text-xs text-red-600 mt-1 font-semibold flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {errors.email}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-mcn-charcoal mb-1">Phone *</label>
@@ -173,10 +261,21 @@ export default function Wholesale() {
                     required
                     type="tel"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="+977-98XXXXXXXX"
-                    className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                    onChange={(e) => {
+                      setFormData({ ...formData, phone: e.target.value });
+                      if (errors.phone) setErrors((prev) => ({ ...prev, phone: '' }));
+                    }}
+                    placeholder="+977-98XXXXXXXX or 98XXXXXXXX"
+                    className={`w-full h-11 px-3 rounded-lg border-2 ${
+                      errors.phone ? 'border-red-400 bg-red-50/10 focus:border-red-500' : 'border-mcn-gray-300 focus:border-mcn-blue'
+                    } focus:outline-none text-sm`}
                   />
+                  {errors.phone && (
+                    <p className="text-xs text-red-600 mt-1 font-semibold flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {errors.phone}
+                    </p>
+                  )}
                 </div>
               </div>
               <div>
@@ -185,9 +284,20 @@ export default function Wholesale() {
                   required
                   type="text"
                   value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm"
+                  onChange={(e) => {
+                    setFormData({ ...formData, city: e.target.value });
+                    if (errors.city) setErrors((prev) => ({ ...prev, city: '' }));
+                  }}
+                  className={`w-full h-11 px-3 rounded-lg border-2 ${
+                    errors.city ? 'border-red-400 bg-red-50/10 focus:border-red-500' : 'border-mcn-gray-300 focus:border-mcn-blue'
+                  } focus:outline-none text-sm`}
                 />
+                {errors.city && (
+                  <p className="text-xs text-red-600 mt-1 font-semibold flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {errors.city}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-bold text-mcn-charcoal mb-2">Products of Interest</label>
@@ -209,18 +319,33 @@ export default function Wholesale() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-bold text-mcn-charcoal mb-1">Expected Quantity</label>
-                <select
+                <label className="block text-sm font-bold text-mcn-charcoal mb-1">
+                  Expected Quantity (Minimum 10 units) *
+                </label>
+                <input
+                  required
+                  type="number"
+                  min={10}
+                  step={1}
                   value={formData.quantity}
-                  onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                  className="w-full h-11 px-3 rounded-lg border-2 border-mcn-gray-300 focus:border-mcn-blue focus:outline-none text-sm bg-white"
-                >
-                  <option value="">Select quantity range</option>
-                  <option>10-20 units</option>
-                  <option>20-50 units</option>
-                  <option>50-100 units</option>
-                  <option>100+ units</option>
-                </select>
+                  onChange={(e) => {
+                    setFormData({ ...formData, quantity: e.target.value });
+                    if (errors.quantity) setErrors((prev) => ({ ...prev, quantity: '' }));
+                  }}
+                  placeholder="e.g. 20 (minimum 10 units)"
+                  className={`w-full h-11 px-3 rounded-lg border-2 ${
+                    errors.quantity ? 'border-red-400 bg-red-50/10 focus:border-red-500' : 'border-mcn-gray-300 focus:border-mcn-blue'
+                  } focus:outline-none text-sm`}
+                />
+                {errors.quantity && (
+                  <p className="text-xs text-red-600 mt-1 font-semibold flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {errors.quantity}
+                  </p>
+                )}
+                <p className="text-xs text-mcn-gray-500 mt-1">
+                  Wholesale pricing starts at 10 units. Discounts increase up to 40% for larger orders.
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-bold text-mcn-charcoal mb-1">Message</label>
