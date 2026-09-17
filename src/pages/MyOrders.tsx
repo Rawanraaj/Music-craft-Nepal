@@ -398,6 +398,16 @@ export default function MyOrders() {
                         </button>
                       )}
 
+                      {order.status === 'Delivered' && (
+                        <button
+                          onClick={() => handleDownloadInvoice(order)}
+                          className="bg-white hover:bg-mcn-gray-50 text-mcn-charcoal border border-mcn-gray-300 font-bold text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-mcn-blue" />
+                          Download Invoice
+                        </button>
+                      )}
+
                       {order.status === 'Delivered' && !returnRequests.some((r) => r.order_id === order.id) && (
                         <button
                           onClick={() => {
@@ -411,16 +421,6 @@ export default function MyOrders() {
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
                           Request Return/Refund
-                        </button>
-                      )}
-
-                      {order.status === 'Delivered' && (
-                        <button
-                          onClick={() => handleDownloadInvoice(order)}
-                          className="bg-white hover:bg-mcn-gray-50 text-mcn-charcoal border border-mcn-gray-300 font-bold text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-mcn-blue" />
-                          Download Invoice
                         </button>
                       )}
 
