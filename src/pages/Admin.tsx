@@ -1623,6 +1623,7 @@ export default function Admin() {
                                 <img
                                   src={product.images[0] || 'https://via.placeholder.com/40'}
                                   alt={product.name}
+                                  loading="lazy"
                                   className="w-10 h-10 rounded-lg object-cover bg-mcn-gray-100"
                                 />
                                 <span className="text-sm font-bold text-mcn-charcoal line-clamp-1">{product.name}</span>
@@ -2322,6 +2323,7 @@ export default function Admin() {
                               <img
                                 src={art.image}
                                 alt={art.title}
+                                loading="lazy"
                                 className="w-12 h-10 rounded-lg object-cover bg-mcn-gray-100 shrink-0"
                               />
                               <div>

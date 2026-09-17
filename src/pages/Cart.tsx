@@ -46,6 +46,7 @@ export default function Cart() {
                   <img
                     src={item.product.images[0]}
                     alt={item.product.name}
+                    loading="lazy"
                     className="w-24 h-24 md:w-32 md:h-32 rounded-lg object-cover bg-mcn-gray-50"
                   />
                 </Link>

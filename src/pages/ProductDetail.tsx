@@ -200,7 +200,7 @@ export default function ProductDetail() {
                       activeImage === idx ? 'border-mcn-blue' : 'border-mcn-gray-200 hover:border-mcn-gray-400'
                     }`}
                   >
-                    <img src={img} alt={`${product.name} ${idx + 1}`} className="w-full h-full object-cover" />
+                    <img src={img} alt={`${product.name} ${idx + 1}`} loading="lazy" className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>

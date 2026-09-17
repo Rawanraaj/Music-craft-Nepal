@@ -263,6 +263,7 @@ export default function Home() {
                           <img
                             src={banner.image_url}
                             alt={banner.title}
+                            loading="lazy"
                             className="w-full h-auto object-cover max-h-[420px] rounded-2xl"
                           />
                         </Link>
@@ -270,6 +271,7 @@ export default function Home() {
                         <img
                           src={banner.image_url}
                           alt={banner.title}
+                          loading="lazy"
                           className="w-full h-auto object-cover max-h-[420px] rounded-2xl"
                         />
                       )}
@@ -440,6 +442,7 @@ export default function Home() {
                 <img
                   src="https://images.unsplash.com/photo-1694632157646-3a7292b82b0c?auto=format&fit=crop&w=800&q=80"
                   alt="Hari Bahadur Magar, master drum maker"
+                  loading="lazy"
                   className="w-full h-full object-cover"
                 />
               </div>

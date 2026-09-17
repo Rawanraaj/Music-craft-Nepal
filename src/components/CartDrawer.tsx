@@ -61,6 +61,7 @@ export default function CartDrawer() {
                     <img
                       src={item.product.images[0]}
                       alt={item.product.name}
+                      loading="lazy"
                       className="w-20 h-20 rounded-lg object-cover bg-mcn-gray-50"
                     />
                   </Link>

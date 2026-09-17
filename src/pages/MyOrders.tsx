@@ -619,6 +619,7 @@ export default function MyOrders() {
                         <img
                           src={item.product.images[0] || 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?q=80&w=300'}
                           alt={item.product.name}
+                          loading="lazy"
                           className="w-14 h-14 object-cover rounded-lg border border-mcn-gray-200 bg-mcn-gray-50 shrink-0"
                         />
                         <div className="flex-1 min-w-0">

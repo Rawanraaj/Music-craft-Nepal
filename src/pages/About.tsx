@@ -152,6 +152,7 @@ export default function About() {
               <img
                 src={content.spotlightImage}
                 alt="Artisan at work"
+                loading="lazy"
                 className="w-full h-full object-cover"
               />
             </div>
