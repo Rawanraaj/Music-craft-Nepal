@@ -29,7 +29,6 @@ import {
   RotateCcw,
   CheckCircle,
   XCircle,
-  AlertCircle,
   Eye,
 } from 'lucide-react';
 import {
@@ -82,13 +81,12 @@ import {
   sendMessage as apiSendMessage,
   markMessagesAsRead,
   deleteConversation,
-  fetchUnreadMessageCount,
   fetchAllReturnRequests,
   updateReturnRequestStatus,
 } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { CATEGORIES } from '../types';
-import type { Product, Order, WholesaleInquiry, Article, PromoBanner, Conversation, Message, ReturnRequest, ReturnReason, ReturnStatus } from '../types';
+import type { Product, Order, WholesaleInquiry, Article, PromoBanner, Conversation, Message, ReturnRequest } from '../types';
 
 type AdminTab = 'overview' | 'products' | 'orders' | 'returns' | 'inquiries' | 'messages' | 'coupons' | 'articles' | 'settings';
 
@@ -1835,7 +1833,6 @@ export default function Admin() {
                           const isAwaitingReturn = req.status === 'Awaiting Item Return' || req.status === 'Approved';
                           const isItemReceived = req.status === 'Item Received';
                           const isRefunded = req.status === 'Refunded';
-                          const isRejected = req.status === 'Rejected';
 
                           return (
                             <tr key={req.id} className="border-t border-mcn-gray-100 hover:bg-mcn-gray-50 transition-colors">

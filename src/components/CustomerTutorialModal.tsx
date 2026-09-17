@@ -195,12 +195,14 @@ export default function CustomerTutorialModal() {
               </div>
 
               {/* Dedicated Note for iPhone / Safari Users */}
-              <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-xl text-xs text-blue-900 leading-relaxed flex items-start gap-2.5">
-                <Share className="w-4 h-4 text-mcn-blue shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-extrabold text-mcn-blue">iPhone / iPad Note:</span> Safari on iOS requires adding this site to your Home Screen to receive notifications. Tap the <span className="font-bold">Share</span> button, then select <span className="font-bold text-mcn-blue">"Add to Home Screen"</span>.
+              {showIPhoneNote && (
+                <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-xl text-xs text-blue-900 leading-relaxed flex items-start gap-2.5">
+                  <Share className="w-4 h-4 text-mcn-blue shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-extrabold text-mcn-blue">iPhone / iPad Note:</span> Safari on iOS requires adding this site to your Home Screen to receive notifications. Tap the <span className="font-bold">Share</span> button, then select <span className="font-bold text-mcn-blue">"Add to Home Screen"</span>.
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 

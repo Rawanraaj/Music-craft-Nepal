@@ -263,16 +263,10 @@ const translations: Record<Language, Record<string, string>> = {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [languageState, setLanguageState] = useState<Language>('en');
-
-  const setLanguage = (_lang: Language) => {
-    setLanguageState('en');
-  };
-
-  const language: Language = 'en';
+  const [language, setLanguage] = useState<Language>('en');
 
   const t = (key: string): string => {
-    return translations['en']?.[key] || key;
+    return translations[language]?.[key] || translations['en']?.[key] || key;
   };
 
   const tCms = (value: BilingualString | undefined, fallback: string = ''): string => {

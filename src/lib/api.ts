@@ -30,7 +30,7 @@ export function mapDbProduct(p: any, fallbackPrice?: number): Product {
   } else if (typeof p.categories === 'string' && p.categories.trim().length > 0) {
     const raw = p.categories.trim();
     if (raw.startsWith('{') && raw.endsWith('}')) {
-      categoriesList = raw.slice(1, -1).split(',').map(s => s.trim().replace(/^"|"$/g, '')).filter(Boolean);
+      categoriesList = raw.slice(1, -1).split(',').map((s: string) => s.trim().replace(/^"|"$/g, '')).filter(Boolean);
     } else if (raw.startsWith('[') && raw.endsWith(']')) {
       try {
         const parsed = JSON.parse(raw);
@@ -39,7 +39,7 @@ export function mapDbProduct(p: any, fallbackPrice?: number): Product {
         categoriesList = [raw];
       }
     } else {
-      categoriesList = raw.split(',').map(s => s.trim()).filter(Boolean);
+      categoriesList = raw.split(',').map((s: string) => s.trim()).filter(Boolean);
     }
   }
 

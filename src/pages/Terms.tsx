@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, Shield, Truck, AlertCircle } from 'lucide-react';
+import { FileText, AlertCircle } from 'lucide-react';
 import { fetchSiteContent } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useSEO } from '../hooks/useSEO';

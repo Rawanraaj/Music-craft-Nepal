@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { fetchUserOrders, cancelOrder, confirmOrderDelivery, startConversation, fetchSiteContent, fetchUserReturnRequests, createReturnRequest, uploadReturnEvidenceImage } from '../lib/api';
 import type { Order, ReturnRequest, ReturnReason } from '../types';
-import { ShoppingBag, ChevronRight, XCircle, Clock, Truck, MessageSquare, CheckCircle2, Bell, FileText, RotateCcw, Upload, AlertCircle, CheckCircle, Image as ImageIcon } from 'lucide-react';
+import { ShoppingBag, ChevronRight, XCircle, Clock, Truck, MessageSquare, CheckCircle2, Bell, FileText, RotateCcw, Upload, AlertCircle, CheckCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { registerPushNotifications, getNotificationPermission } from '../lib/pushNotifications';
 

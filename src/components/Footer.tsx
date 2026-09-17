@@ -7,7 +7,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 
 export default function Footer() {
-  const { t, tCms } = useLanguage();
+  const { tCms } = useLanguage();
   const { user } = useAuth();
 
   const footerLinkSections = {

@@ -20,7 +20,7 @@ const STATS = [
 ];
 
 export default function About() {
-  const { t, tCms } = useLanguage();
+  const { tCms } = useLanguage();
   const [content, setContent] = useState<any>({
     heroTitle: 'Our Story',
     heroSubtitle: "Bringing the sound of Nepal's mountains to musicians across the country.",
