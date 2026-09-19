@@ -147,7 +147,7 @@ export default function Admin() {
 
   // Digital Payment Settings State
   const [cmsPaymentSettings, setCmsPaymentSettings] = useState<PaymentSettings>(DEFAULT_PAYMENT_SETTINGS);
-  const [uploadingQrProvider, setUploadingQrProvider] = useState<'eSewa' | 'Khalti' | null>(null);
+  const [uploadingQrProvider, setUploadingQrProvider] = useState<'BankTransfer' | 'Fonepay' | null>(null);
 
   // Return Requests Admin State
   const [returnStatusFilter, setReturnStatusFilter] = useState<string>('All');
@@ -1105,20 +1105,21 @@ export default function Admin() {
     }
   };
 
-  const handleQrImageUpload = async (provider: 'eSewa' | 'Khalti', e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleQrImageUpload = async (provider: 'BankTransfer' | 'Fonepay', e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     setUploadingQrProvider(provider);
     try {
       const url = await uploadProductImage(e.target.files[0]);
-      if (provider === 'eSewa') {
+      if (provider === 'BankTransfer') {
         setCmsPaymentSettings((prev) => ({ ...prev, esewa_qr_url: url }));
       } else {
         setCmsPaymentSettings((prev) => ({ ...prev, khalti_qr_url: url }));
       }
-      showToast(`${provider} QR code image uploaded successfully!`, 'success');
+      const label = provider === 'BankTransfer' ? 'Bank Transfer' : 'Fonepay';
+      showToast(`${label} QR code image uploaded successfully!`, 'success');
     } catch (err: any) {
       console.error(`Failed to upload ${provider} QR image:`, err);
-      showToast(`Failed to upload ${provider} QR image.`, 'error');
+      showToast(`Failed to upload QR image.`, 'error');
     } finally {
       setUploadingQrProvider(null);
     }
@@ -1746,7 +1747,7 @@ export default function Admin() {
                       )}
                     </h2>
                     <p className="text-xs text-mcn-gray-500 mt-0.5">
-                      Verify customer eSewa/Khalti digital pre-payments before confirming orders for delivery.
+                      Verify customer Bank Transfer / Fonepay digital pre-payments before confirming orders for delivery.
                     </p>
                   </div>
                   <button
@@ -3062,36 +3063,36 @@ export default function Admin() {
                     </div>
                   </div>
 
-                  {/* Digital Pre-Payment Settings (eSewa & Khalti) */}
+                  {/* Digital Pre-Payment Settings (Bank Transfer & Fonepay) */}
                   <div className="bg-white rounded-xl border border-mcn-gray-200 p-6 space-y-6">
                     <div className="flex items-center justify-between border-b border-mcn-gray-100 pb-3">
                       <div>
                         <h2 className="text-lg font-extrabold text-mcn-charcoal flex items-center gap-2">
                           <QrCode className="w-5 h-5 text-mcn-blue" />
-                          Digital Pre-Payment Settings (eSewa & Khalti)
+                          Digital Pre-Payment Settings (Bank Transfer & Fonepay)
                         </h2>
                         <p className="text-xs text-mcn-gray-500 mt-1">
-                          Configure merchant IDs, recipient names, instructions, and QR code images shown to customers at checkout.
+                          Configure bank account / Fonepay IDs, merchant names, instructions, and QR code images shown to customers at checkout.
                         </p>
                       </div>
                     </div>
 
                     <div className="grid md:grid-cols-2 gap-6">
-                      {/* eSewa Configuration */}
+                      {/* Direct Bank QR Configuration */}
                       <div className="border border-emerald-200 rounded-xl p-4 bg-emerald-50/30 space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded">
-                            eSewa Details
+                            Direct Bank QR (Siddhartha Bank)
                           </span>
                         </div>
 
                         <div>
-                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">eSewa ID / Mobile Number</label>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Bank Account / QR ID</label>
                           <input
                             type="text"
                             value={cmsPaymentSettings.esewa_id}
                             onChange={(e) => setCmsPaymentSettings((prev) => ({ ...prev, esewa_id: e.target.value }))}
-                            placeholder="e.g. 9800000000"
+                            placeholder="e.g. 00115000000 or Account / Terminal ID"
                             className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none bg-white"
                           />
                         </div>
@@ -3102,19 +3103,19 @@ export default function Admin() {
                             type="text"
                             value={cmsPaymentSettings.esewa_name}
                             onChange={(e) => setCmsPaymentSettings((prev) => ({ ...prev, esewa_name: e.target.value }))}
-                            placeholder="e.g. Music Craft Nepal"
+                            placeholder="e.g. Music Craft Nepal Pvt. Ltd."
                             className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none bg-white"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">eSewa QR Code Image</label>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Bank Transfer QR Code Image</label>
                           <div className="flex items-center gap-3">
                             {cmsPaymentSettings.esewa_qr_url ? (
                               <div className="w-16 h-16 rounded-lg border border-mcn-gray-200 overflow-hidden bg-white flex-shrink-0">
                                 <img
                                   src={cmsPaymentSettings.esewa_qr_url}
-                                  alt="eSewa QR"
+                                  alt="Bank Transfer QR"
                                   className="w-full h-full object-contain"
                                 />
                               </div>
@@ -3126,13 +3127,13 @@ export default function Admin() {
                             <div className="flex-1">
                               <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-mcn-gray-300 text-xs font-bold text-mcn-charcoal rounded-lg cursor-pointer hover:bg-mcn-gray-50 transition-colors shadow-sm">
                                 <Upload className="w-3.5 h-3.5 text-mcn-blue" />
-                                {uploadingQrProvider === 'eSewa' ? 'Uploading...' : 'Upload QR Image'}
+                                {uploadingQrProvider === 'BankTransfer' ? 'Uploading...' : 'Upload QR Image'}
                                 <input
                                   type="file"
                                   accept="image/*"
                                   className="hidden"
                                   disabled={uploadingQrProvider !== null}
-                                  onChange={(e) => handleQrImageUpload('eSewa', e)}
+                                  onChange={(e) => handleQrImageUpload('BankTransfer', e)}
                                 />
                               </label>
                               <input
@@ -3147,21 +3148,21 @@ export default function Admin() {
                         </div>
                       </div>
 
-                      {/* Khalti Configuration */}
-                      <div className="border border-purple-200 rounded-xl p-4 bg-purple-50/30 space-y-3">
+                      {/* Fonepay Configuration */}
+                      <div className="border border-red-200 rounded-xl p-4 bg-red-50/30 space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-extrabold text-purple-800 uppercase tracking-wider bg-purple-100 px-2 py-0.5 rounded">
-                            Khalti Details
+                          <span className="text-xs font-extrabold text-red-800 uppercase tracking-wider bg-red-100 px-2 py-0.5 rounded">
+                            Fonepay Details
                           </span>
                         </div>
 
                         <div>
-                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Khalti ID / Mobile Number</label>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Fonepay ID / Mobile Number</label>
                           <input
                             type="text"
                             value={cmsPaymentSettings.khalti_id}
                             onChange={(e) => setCmsPaymentSettings((prev) => ({ ...prev, khalti_id: e.target.value }))}
-                            placeholder="e.g. 9800000000"
+                            placeholder="e.g. 9800000000 or Fonepay Merchant ID"
                             className="w-full h-9 px-3 rounded-lg border border-mcn-gray-300 text-xs focus:border-mcn-blue focus:outline-none bg-white"
                           />
                         </div>
@@ -3178,13 +3179,13 @@ export default function Admin() {
                         </div>
 
                         <div>
-                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Khalti QR Code Image</label>
+                          <label className="block text-xs font-bold text-mcn-charcoal mb-1">Fonepay QR Code Image</label>
                           <div className="flex items-center gap-3">
                             {cmsPaymentSettings.khalti_qr_url ? (
                               <div className="w-16 h-16 rounded-lg border border-mcn-gray-200 overflow-hidden bg-white flex-shrink-0">
                                 <img
                                   src={cmsPaymentSettings.khalti_qr_url}
-                                  alt="Khalti QR"
+                                  alt="Fonepay QR"
                                   className="w-full h-full object-contain"
                                 />
                               </div>
@@ -3196,13 +3197,13 @@ export default function Admin() {
                             <div className="flex-1">
                               <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-mcn-gray-300 text-xs font-bold text-mcn-charcoal rounded-lg cursor-pointer hover:bg-mcn-gray-50 transition-colors shadow-sm">
                                 <Upload className="w-3.5 h-3.5 text-mcn-blue" />
-                                {uploadingQrProvider === 'Khalti' ? 'Uploading...' : 'Upload QR Image'}
+                                {uploadingQrProvider === 'Fonepay' ? 'Uploading...' : 'Upload QR Image'}
                                 <input
                                   type="file"
                                   accept="image/*"
                                   className="hidden"
                                   disabled={uploadingQrProvider !== null}
-                                  onChange={(e) => handleQrImageUpload('Khalti', e)}
+                                  onChange={(e) => handleQrImageUpload('Fonepay', e)}
                                 />
                               </label>
                               <input
@@ -4417,7 +4418,7 @@ export default function Admin() {
                   className="w-full px-3 py-2 border border-mcn-gray-300 rounded-lg text-xs font-bold text-mcn-charcoal focus:ring-2 focus:ring-emerald-500 outline-none"
                 >
                   <option value="Cash">Cash in Hand (Store Return)</option>
-                  <option value="Bank Transfer">Bank Transfer (eSewa / Khalti / ConnectIPS)</option>
+                  <option value="Bank Transfer">Bank Transfer (Mobile Banking / Fonepay / ConnectIPS)</option>
                   <option value="Store Credit">Store Credit / Exchange</option>
                   <option value="Other">Other Method</option>
                 </select>

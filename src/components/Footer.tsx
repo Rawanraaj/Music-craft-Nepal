@@ -281,9 +281,9 @@ export default function Footer() {
           <div className="flex items-center gap-4 text-xs text-mcn-gray-500">
             <span>Digital Pre-Payment</span>
             <span className="text-mcn-gray-600">|</span>
-            <span>eSewa</span>
+            <span>Direct Bank QR</span>
             <span className="text-mcn-gray-600">|</span>
-            <span>Khalti</span>
+            <span>Fonepay</span>
           </div>
         </div>
       </div>

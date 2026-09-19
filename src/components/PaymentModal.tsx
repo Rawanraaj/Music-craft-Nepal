@@ -6,7 +6,7 @@ import type { PaymentSettings } from '../types';
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirmPayment: (paymentData: { method: 'eSewa' | 'Khalti'; transactionRef: string }) => void;
+  onConfirmPayment: (paymentData: { method: 'BankTransfer' | 'Fonepay'; transactionRef: string }) => void;
   totalAmount: number;
   loading?: boolean;
 }
@@ -18,7 +18,7 @@ export default function PaymentModal({
   totalAmount,
   loading = false,
 }: PaymentModalProps) {
-  const [selectedMethod, setSelectedMethod] = useState<'eSewa' | 'Khalti'>('eSewa');
+  const [selectedMethod, setSelectedMethod] = useState<'BankTransfer' | 'Fonepay'>('BankTransfer');
   const [settings, setSettings] = useState<PaymentSettings>(DEFAULT_PAYMENT_SETTINGS);
   const [copied, setCopied] = useState(false);
   const [transactionRef, setTransactionRef] = useState('');
@@ -33,9 +33,9 @@ export default function PaymentModal({
 
   if (!isOpen) return null;
 
-  const currentId = selectedMethod === 'eSewa' ? settings.esewa_id : settings.khalti_id;
-  const currentName = selectedMethod === 'eSewa' ? settings.esewa_name : settings.khalti_name;
-  const currentQrUrl = selectedMethod === 'eSewa' ? settings.esewa_qr_url : settings.khalti_qr_url;
+  const currentId = selectedMethod === 'BankTransfer' ? settings.esewa_id : settings.khalti_id;
+  const currentName = selectedMethod === 'BankTransfer' ? settings.esewa_name : settings.khalti_name;
+  const currentQrUrl = selectedMethod === 'BankTransfer' ? settings.esewa_qr_url : settings.khalti_qr_url;
 
   const handleCopyId = () => {
     if (!currentId) return;
@@ -63,7 +63,7 @@ export default function PaymentModal({
             </div>
             <div>
               <h2 className="text-base font-extrabold leading-tight">Digital Pre-Payment</h2>
-              <p className="text-xs text-mcn-gray-400">Nepal Wallet QR Transfer (eSewa / Khalti)</p>
+              <p className="text-xs text-mcn-gray-400">Direct Bank QR & Fonepay Transfer</p>
             </div>
           </div>
           <button
@@ -96,37 +96,37 @@ export default function PaymentModal({
 
           {/* Provider Selector Tabs */}
           <div>
-            <label className="block text-xs font-bold text-mcn-charcoal mb-2">Select Digital Wallet:</label>
+            <label className="block text-xs font-bold text-mcn-charcoal mb-2">Select Payment QR Option:</label>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedMethod('eSewa');
+                  setSelectedMethod('BankTransfer');
                   setCopied(false);
                 }}
                 className={`py-2.5 px-4 rounded-xl border-2 font-extrabold text-xs flex items-center justify-center gap-2 transition-all ${
-                  selectedMethod === 'eSewa'
+                  selectedMethod === 'BankTransfer'
                     ? 'border-emerald-600 bg-emerald-50 text-emerald-800 shadow-xs'
                     : 'border-mcn-gray-200 bg-white text-mcn-gray-600 hover:bg-mcn-gray-50'
                 }`}
               >
                 <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" />
-                eSewa QR
+                Bank Transfer QR
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedMethod('Khalti');
+                  setSelectedMethod('Fonepay');
                   setCopied(false);
                 }}
                 className={`py-2.5 px-4 rounded-xl border-2 font-extrabold text-xs flex items-center justify-center gap-2 transition-all ${
-                  selectedMethod === 'Khalti'
-                    ? 'border-purple-600 bg-purple-50 text-purple-800 shadow-xs'
+                  selectedMethod === 'Fonepay'
+                    ? 'border-red-600 bg-red-50 text-red-800 shadow-xs'
                     : 'border-mcn-gray-200 bg-white text-mcn-gray-600 hover:bg-mcn-gray-50'
                 }`}
               >
-                <span className="w-3 h-3 rounded-full bg-purple-600 inline-block" />
-                Khalti QR
+                <span className="w-3 h-3 rounded-full bg-red-600 inline-block" />
+                Fonepay QR
               </button>
             </div>
           </div>
@@ -137,20 +137,27 @@ export default function PaymentModal({
               {currentQrUrl ? (
                 <img
                   src={currentQrUrl}
-                  alt={`${selectedMethod} QR Code`}
+                  alt={selectedMethod === 'BankTransfer' ? 'Direct Bank Transfer QR Code' : 'Fonepay QR Code'}
                   className="w-full h-full object-contain"
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center text-mcn-gray-400 p-4">
                   <QrCode className="w-20 h-20 text-mcn-charcoal/70 mb-2" />
                   <span className="text-[11px] font-bold text-mcn-charcoal">
-                    {selectedMethod} Payment QR
+                    {selectedMethod === 'BankTransfer' ? 'Direct Bank Transfer QR' : 'Fonepay QR'}
                   </span>
                   <span className="text-[10px] text-mcn-gray-500 mt-1">
-                    Scan via {selectedMethod} App
+                    Scan via Mobile Banking, eSewa, or Khalti
                   </span>
                 </div>
               )}
+            </div>
+
+            {/* Wallet Compatibility Helper Banner */}
+            <div className="bg-emerald-50/70 border border-emerald-200 rounded-lg py-1.5 px-2.5">
+              <p className="text-[11px] font-medium text-emerald-800">
+                ✨ Compatible with eSewa, Khalti, mobile banking apps, and most Nepali digital wallets
+              </p>
             </div>
 
             {/* Merchant Account Details */}
@@ -158,7 +165,7 @@ export default function PaymentModal({
               <p className="text-xs font-bold text-mcn-charcoal">{currentName || 'Music Craft Nepal Pvt. Ltd.'}</p>
               <div className="flex items-center justify-center gap-2 text-xs font-mono font-bold text-mcn-gray-600">
                 <Smartphone className="w-3.5 h-3.5 text-mcn-blue" />
-                <span>{selectedMethod} ID: {currentId}</span>
+                <span>{selectedMethod === 'BankTransfer' ? 'Bank Account / QR ID' : 'Fonepay ID'}: {currentId}</span>
                 <button
                   type="button"
                   onClick={handleCopyId}

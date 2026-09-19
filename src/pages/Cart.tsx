@@ -152,7 +152,7 @@ export default function Cart() {
                 Proceed to Checkout
               </Link>
               <p className="text-xs text-mcn-gray-500 text-center mt-3">
-                Express Rider Delivery (Kathmandu Valley) · Pre-Payment via eSewa / Khalti
+                Express Rider Delivery (Kathmandu Valley) · Pre-Payment via Bank QR / Fonepay (eSewa & Khalti compatible)
               </p>
             </div>
           </div>

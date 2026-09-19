@@ -15,7 +15,7 @@ export default function Checkout() {
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [selectedWallet, setSelectedWallet] = useState<'eSewa' | 'Khalti'>('eSewa');
+  const [selectedWallet, setSelectedWallet] = useState<'BankTransfer' | 'Fonepay'>('BankTransfer');
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -84,12 +84,13 @@ export default function Checkout() {
     setIsPaymentModalOpen(true);
   };
 
-  const handleConfirmPayment = async (paymentData: { method: 'eSewa' | 'Khalti'; transactionRef: string }) => {
+  const handleConfirmPayment = async (paymentData: { method: 'BankTransfer' | 'Fonepay'; transactionRef: string }) => {
     setLoading(true);
     try {
+      const methodLabel = paymentData.method === 'BankTransfer' ? 'Bank Transfer QR' : 'Fonepay QR';
       const paymentMethodString = paymentData.transactionRef
-        ? `${paymentData.method} (Ref: ${paymentData.transactionRef})`
-        : paymentData.method;
+        ? `${methodLabel} (Ref: ${paymentData.transactionRef})`
+        : methodLabel;
 
       const fullAddress = formData.notes
         ? `${formData.address}, ${formData.city}, ${formData.province} [Notes: ${formData.notes}]`
@@ -315,16 +316,16 @@ export default function Checkout() {
                 <div className="space-y-1">
                   <p className="font-extrabold text-xs uppercase tracking-wider text-amber-950">Cash on Delivery Unavailable</p>
                   <p className="text-amber-800 leading-relaxed">
-                    Cash on Delivery is currently unavailable due to no in-house delivery riders. Your order will be delivered by a trusted rider via ride-hailing apps. Mandatory digital pre-payment via eSewa or Khalti is required before dispatch.
+                    Cash on Delivery is currently unavailable due to no in-house delivery riders. Your order will be delivered by a trusted rider via ride-hailing apps. Mandatory digital pre-payment via Bank Transfer QR or Fonepay QR is required before dispatch.
                   </p>
                 </div>
               </div>
 
               <div className="space-y-3">
                 <label 
-                  onClick={() => setSelectedWallet('eSewa')}
+                  onClick={() => setSelectedWallet('BankTransfer')}
                   className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                    selectedWallet === 'eSewa'
+                    selectedWallet === 'BankTransfer'
                       ? 'border-emerald-600 bg-emerald-50/50 shadow-xs'
                       : 'border-mcn-gray-200 hover:border-mcn-gray-300'
                   }`}
@@ -332,46 +333,46 @@ export default function Checkout() {
                   <input
                     type="radio"
                     name="payment"
-                    checked={selectedWallet === 'eSewa'}
-                    onChange={() => setSelectedWallet('eSewa')}
+                    checked={selectedWallet === 'BankTransfer'}
+                    onChange={() => setSelectedWallet('BankTransfer')}
                     className="accent-emerald-600 w-4 h-4"
                   />
                   <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 shrink-0">
                     <CreditCard className="w-5 h-5" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-mcn-charcoal">eSewa Mobile Wallet</p>
-                    <p className="text-xs text-mcn-gray-500">Scan QR or transfer via eSewa app</p>
+                    <p className="text-sm font-bold text-mcn-charcoal">Bank Transfer QR</p>
+                    <p className="text-xs text-mcn-gray-500">Siddhartha Bank QR · Pay via any banking app, eSewa, or Khalti</p>
                   </div>
                   <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full">
-                    DIGITAL PRE-PAY
+                    DIRECT BANK
                   </span>
                 </label>
 
                 <label 
-                  onClick={() => setSelectedWallet('Khalti')}
+                  onClick={() => setSelectedWallet('Fonepay')}
                   className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                    selectedWallet === 'Khalti'
-                      ? 'border-purple-600 bg-purple-50/50 shadow-xs'
+                    selectedWallet === 'Fonepay'
+                      ? 'border-red-600 bg-red-50/50 shadow-xs'
                       : 'border-mcn-gray-200 hover:border-mcn-gray-300'
                   }`}
                 >
                   <input
                     type="radio"
                     name="payment"
-                    checked={selectedWallet === 'Khalti'}
-                    onChange={() => setSelectedWallet('Khalti')}
-                    className="accent-purple-600 w-4 h-4"
+                    checked={selectedWallet === 'Fonepay'}
+                    onChange={() => setSelectedWallet('Fonepay')}
+                    className="accent-red-600 w-4 h-4"
                   />
-                  <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-600 shrink-0">
+                  <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center text-red-600 shrink-0">
                     <CreditCard className="w-5 h-5" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-mcn-charcoal">Khalti Digital Wallet</p>
-                    <p className="text-xs text-mcn-gray-500">Scan QR or transfer via Khalti app</p>
+                    <p className="text-sm font-bold text-mcn-charcoal">Fonepay QR</p>
+                    <p className="text-xs text-mcn-gray-500">Fonepay network · Scan via eSewa, Khalti, or mobile banking</p>
                   </div>
-                  <span className="text-[11px] font-bold text-purple-700 bg-purple-100 px-2.5 py-1 rounded-full">
-                    DIGITAL PRE-PAY
+                  <span className="text-[11px] font-bold text-red-700 bg-red-100 px-2.5 py-1 rounded-full">
+                    FONEPAY
                   </span>
                 </label>
               </div>

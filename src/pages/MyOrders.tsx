@@ -209,7 +209,7 @@ export default function MyOrders() {
             <div class="meta-title">Order Details</div>
             <strong>Order ID:</strong> ${order.id}<br/>
             <strong>Date:</strong> ${order.date}<br/>
-            <strong>Payment Method:</strong> ${order.paymentMethod}<br/>
+            <strong>Payment Method:</strong> ${order.payment_method || order.paymentMethod || 'Bank Transfer QR / Fonepay QR'}<br/>
             <strong>Status:</strong> ${order.status}
           </div>
           <div>
@@ -464,7 +464,7 @@ export default function MyOrders() {
                           </span>
                         </h4>
                         <p className="text-xs text-amber-800 mt-1 leading-relaxed">
-                          We've recorded your order and payment reference. Our team is verifying the transaction in our eSewa / Khalti merchant account. Once verified, your order will transition to <strong>Confirmed</strong> and be prepared for delivery via ride-hailing rider.
+                          We've recorded your order and payment reference. Our team is verifying the transaction in our merchant account. Once verified, your order will transition to <strong>Confirmed</strong> and be prepared for delivery via ride-hailing rider.
                         </p>
                         {order.payment_method && (
                           <div className="mt-2.5 flex items-center gap-2 flex-wrap text-xs text-amber-900">

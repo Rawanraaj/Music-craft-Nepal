@@ -483,7 +483,7 @@ export async function updateSiteContent(key: string, value: any): Promise<void> 
   if (error) throw error;
 }
 
-// DIGITAL PAYMENT SETTINGS (eSewa / Khalti)
+// DIGITAL PAYMENT SETTINGS (Bank Transfer & Fonepay)
 export const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
   esewa_id: '9841234567',
   esewa_name: 'Music Craft Nepal Pvt. Ltd.',
@@ -491,7 +491,7 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
   khalti_id: '9841234567',
   khalti_name: 'Music Craft Nepal Pvt. Ltd.',
   khalti_qr_url: '',
-  instructions: 'Please pay the exact amount using eSewa or Khalti. Note your Transaction Code in the field below.',
+  instructions: 'Please pay the exact amount using Mobile Banking, Fonepay, eSewa, or Khalti. Note your Transaction Code in the field below.',
 };
 
 export async function fetchPaymentSettings(): Promise<PaymentSettings> {
