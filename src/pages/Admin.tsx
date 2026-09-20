@@ -216,9 +216,9 @@ export default function Admin() {
   const [cmsAboutCopy, setCmsAboutCopy] = useState<{ en: string; ne: string }>({ en: '', ne: '' });
   const [cmsAboutImage, setCmsAboutImage] = useState('');
   const [cmsContactDetails, setCmsContactDetails] = useState({
-    phone: { en: '', ne: '' },
-    email: { en: '', ne: '' },
-    hours: { en: '', ne: '' },
+    phone: { en: '01-4123456', ne: '०१-४१२३४५६' },
+    email: { en: 'hello@musiccraftnepal.com', ne: 'hello@musiccraftnepal.com' },
+    hours: { en: 'Sun-Fri: 10AM - 6PM', ne: 'आइत-शुक्र: बिहान १० देखि साँझ ६ बजेसम्म' },
   });
 
   const [cmsBusinessInfo, setCmsBusinessInfo] = useState({
@@ -509,9 +509,15 @@ export default function Admin() {
       if (aboutImg) setCmsAboutImage(aboutImg);
       if (contact) {
         setCmsContactDetails({
-          phone: typeof contact.phone === 'object' ? contact.phone : { en: contact.phone || '', ne: '' },
-          email: typeof contact.email === 'object' ? contact.email : { en: contact.email || '', ne: '' },
-          hours: typeof contact.hours === 'object' ? contact.hours : { en: contact.hours || '', ne: '' },
+          phone: typeof contact.phone === 'object'
+            ? { en: contact.phone.en || '01-4123456', ne: contact.phone.ne || '०१-४१२३४५६' }
+            : { en: contact.phone || '01-4123456', ne: '०१-४१२३४५६' },
+          email: typeof contact.email === 'object'
+            ? { en: contact.email.en || 'hello@musiccraftnepal.com', ne: contact.email.ne || 'hello@musiccraftnepal.com' }
+            : { en: contact.email || 'hello@musiccraftnepal.com', ne: 'hello@musiccraftnepal.com' },
+          hours: typeof contact.hours === 'object'
+            ? { en: contact.hours.en || 'Sun-Fri: 10AM - 6PM', ne: contact.hours.ne || 'आइत-शुक्र: बिहान १० देखि साँझ ६ बजेसम्म' }
+            : { en: contact.hours || 'Sun-Fri: 10AM - 6PM', ne: 'आइत-शुक्र: बिहान १० देखि साँझ ६ बजेसम्म' },
         });
       }
       if (bizInfo) setCmsBusinessInfo((prev) => ({ ...prev, ...bizInfo }));

@@ -82,6 +82,16 @@ export default function Footer() {
       .catch((err) => console.error('Error fetching business info:', err));
   }, []);
 
+  const rawAddress = tCms(content.address);
+  const displayAddress = typeof rawAddress === 'string' && rawAddress.trim() ? rawAddress : 'Bhotahity, Kathmandu, Nepal';
+
+  const rawPhone = tCms(content.phone);
+  const displayPhone = typeof rawPhone === 'string' && rawPhone.trim() ? rawPhone : '01-4123456';
+  const cleanPhone = displayPhone.replace(/[^0-9]/g, '');
+
+  const rawEmail = tCms(content.email);
+  const displayEmail = typeof rawEmail === 'string' && rawEmail.trim() ? rawEmail : 'hello@musiccraftnepal.com';
+
   return (
     <footer className="bg-mcn-dark text-white">
       {/* Newsletter band */}
@@ -220,15 +230,15 @@ export default function Footer() {
             <ul className="space-y-3">
               <li className="flex items-start gap-2 text-sm text-mcn-gray-400">
                 <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-mcn-mint" />
-                <span>{content.address}</span>
+                <span>{displayAddress}</span>
               </li>
               <li className="flex items-center gap-2 text-sm text-mcn-gray-400">
                 <Phone className="w-4 h-4 shrink-0 text-mcn-mint" />
-                <a href={`tel:${content.phone.replace(/[^0-9]/g, '')}`} className="hover:text-white transition-colors">{content.phone}</a>
+                <a href={`tel:${cleanPhone}`} className="hover:text-white transition-colors">{displayPhone}</a>
               </li>
               <li className="flex items-center gap-2 text-sm text-mcn-gray-400">
                 <Mail className="w-4 h-4 shrink-0 text-mcn-mint" />
-                <a href={`mailto:${content.email}`} className="hover:text-white transition-colors">{content.email}</a>
+                <a href={`mailto:${displayEmail}`} className="hover:text-white transition-colors">{displayEmail}</a>
               </li>
             </ul>
           </div>
