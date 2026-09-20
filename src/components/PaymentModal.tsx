@@ -53,10 +53,10 @@ export default function PaymentModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-mcn-gray-200 animate-in fade-in zoom-in duration-150">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+      <div className="bg-white rounded-2xl max-w-md sm:max-w-lg w-full my-auto overflow-hidden shadow-2xl border border-mcn-gray-200 animate-in fade-in zoom-in duration-150">
         {/* Header */}
-        <div className="bg-mcn-charcoal text-white p-5 flex items-center justify-between">
+        <div className="bg-mcn-charcoal text-white p-4 sm:p-5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
               <ShieldCheck className="w-5 h-5" />
@@ -77,7 +77,7 @@ export default function PaymentModal({
         </div>
 
         {/* Ride-Hailing Notice */}
-        <div className="bg-amber-50 border-b border-amber-200 px-5 py-3 text-xs text-amber-900 flex items-start gap-2.5">
+        <div className="bg-amber-50 border-b border-amber-200 px-4 sm:px-5 py-2.5 text-xs text-amber-900 flex items-start gap-2.5">
           <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           <p className="leading-relaxed">
             <span className="font-bold">No Cash on Delivery: </span>
@@ -85,33 +85,33 @@ export default function PaymentModal({
           </p>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
           {/* Amount Display */}
-          <div className="bg-mcn-gray-50 border border-mcn-gray-200 rounded-xl p-4 flex items-center justify-between">
+          <div className="bg-mcn-gray-50 border border-mcn-gray-200 rounded-xl p-3 sm:p-4 flex items-center justify-between">
             <span className="text-xs font-bold text-mcn-gray-500 uppercase tracking-wider">Amount Due:</span>
-            <span className="text-2xl font-extrabold text-mcn-charcoal">
+            <span className="text-xl sm:text-2xl font-extrabold text-mcn-charcoal">
               Rs. {totalAmount.toLocaleString()}
             </span>
           </div>
 
           {/* Provider Selector Tabs */}
           <div>
-            <label className="block text-xs font-bold text-mcn-charcoal mb-2">Select Payment QR Option:</label>
-            <div className="grid grid-cols-2 gap-3">
+            <label className="block text-xs font-bold text-mcn-charcoal mb-1.5">Select Payment QR Option:</label>
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={() => {
                   setSelectedMethod('BankTransfer');
                   setCopied(false);
                 }}
-                className={`py-2.5 px-4 rounded-xl border-2 font-extrabold text-xs flex items-center justify-center gap-2 transition-all ${
+                className={`py-2.5 px-3 sm:px-4 rounded-xl border-2 font-extrabold text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-all ${
                   selectedMethod === 'BankTransfer'
                     ? 'border-emerald-600 bg-emerald-50 text-emerald-800 shadow-xs'
                     : 'border-mcn-gray-200 bg-white text-mcn-gray-600 hover:bg-mcn-gray-50'
                 }`}
               >
-                <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" />
-                Bank Transfer QR
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block shrink-0" />
+                <span className="truncate">Bank Transfer QR</span>
               </button>
               <button
                 type="button"
@@ -119,34 +119,35 @@ export default function PaymentModal({
                   setSelectedMethod('Fonepay');
                   setCopied(false);
                 }}
-                className={`py-2.5 px-4 rounded-xl border-2 font-extrabold text-xs flex items-center justify-center gap-2 transition-all ${
+                className={`py-2.5 px-3 sm:px-4 rounded-xl border-2 font-extrabold text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-all ${
                   selectedMethod === 'Fonepay'
                     ? 'border-red-600 bg-red-50 text-red-800 shadow-xs'
                     : 'border-mcn-gray-200 bg-white text-mcn-gray-600 hover:bg-mcn-gray-50'
                 }`}
               >
-                <span className="w-3 h-3 rounded-full bg-red-600 inline-block" />
-                Fonepay QR
+                <span className="w-2.5 h-2.5 rounded-full bg-red-600 inline-block shrink-0" />
+                <span className="truncate">Fonepay QR</span>
               </button>
             </div>
           </div>
 
           {/* QR Code Presentation Box */}
-          <div className="border border-mcn-gray-200 rounded-2xl p-5 bg-white text-center space-y-3">
-            <div className="w-48 h-48 mx-auto bg-mcn-gray-50 rounded-xl border-2 border-dashed border-mcn-gray-300 flex items-center justify-center p-2 relative overflow-hidden">
+          <div className="border border-mcn-gray-200 rounded-2xl p-3 sm:p-4 bg-white text-center space-y-2.5 shadow-xs">
+            {/* Enlarged QR Code Container */}
+            <div className="w-full max-w-[280px] sm:max-w-[320px] aspect-square mx-auto bg-white rounded-xl border-2 border-mcn-gray-200 shadow-xs flex items-center justify-center p-1 sm:p-1.5 relative overflow-hidden">
               {currentQrUrl ? (
                 <img
                   src={currentQrUrl}
                   alt={selectedMethod === 'BankTransfer' ? 'Direct Bank Transfer QR Code' : 'Fonepay QR Code'}
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-contain rounded-lg"
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center text-mcn-gray-400 p-4">
-                  <QrCode className="w-20 h-20 text-mcn-charcoal/70 mb-2" />
-                  <span className="text-[11px] font-bold text-mcn-charcoal">
+                  <QrCode className="w-24 h-24 text-mcn-charcoal/70 mb-2" />
+                  <span className="text-xs font-bold text-mcn-charcoal">
                     {selectedMethod === 'BankTransfer' ? 'Direct Bank Transfer QR' : 'Fonepay QR'}
                   </span>
-                  <span className="text-[10px] text-mcn-gray-500 mt-1">
+                  <span className="text-[11px] text-mcn-gray-500 mt-1">
                     Scan via Mobile Banking, eSewa, or Khalti
                   </span>
                 </div>
@@ -154,22 +155,22 @@ export default function PaymentModal({
             </div>
 
             {/* Wallet Compatibility Helper Banner */}
-            <div className="bg-emerald-50/70 border border-emerald-200 rounded-lg py-1.5 px-2.5">
-              <p className="text-[11px] font-medium text-emerald-800">
-                ✨ Compatible with eSewa, Khalti, mobile banking apps, and most Nepali digital wallets
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg py-1.5 px-3 max-w-[320px] mx-auto">
+              <p className="text-[11px] font-semibold text-emerald-800">
+                ✨ Compatible with eSewa, Khalti, mobile banking apps, and all Nepali digital wallets
               </p>
             </div>
 
             {/* Merchant Account Details */}
-            <div className="space-y-1">
+            <div className="space-y-1 pt-1">
               <p className="text-xs font-bold text-mcn-charcoal">{currentName || 'Music Craft Nepal Pvt. Ltd.'}</p>
               <div className="flex items-center justify-center gap-2 text-xs font-mono font-bold text-mcn-gray-600">
-                <Smartphone className="w-3.5 h-3.5 text-mcn-blue" />
-                <span>{selectedMethod === 'BankTransfer' ? 'Bank Account / QR ID' : 'Fonepay ID'}: {currentId}</span>
+                <Smartphone className="w-3.5 h-3.5 text-mcn-blue shrink-0" />
+                <span className="truncate">{selectedMethod === 'BankTransfer' ? 'Bank Account / QR ID' : 'Fonepay ID'}: {currentId}</span>
                 <button
                   type="button"
                   onClick={handleCopyId}
-                  className="inline-flex items-center gap-1 text-[11px] font-sans font-bold text-mcn-blue hover:text-mcn-blue-dark transition-colors ml-1 px-2 py-0.5 bg-mcn-blue/10 rounded-md"
+                  className="inline-flex items-center gap-1 text-[11px] font-sans font-bold text-mcn-blue hover:text-mcn-blue-dark transition-colors ml-1 px-2 py-0.5 bg-mcn-blue/10 rounded-md shrink-0"
                   title="Copy ID"
                 >
                   {copied ? (
