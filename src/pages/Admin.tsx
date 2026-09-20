@@ -1091,17 +1091,42 @@ export default function Admin() {
     e.preventDefault();
     setSettingsLoading(true);
     try {
-      await Promise.all([
-        updateSiteContent('hero_slides', cmsHeroSlides),
-        updateSiteContent('about_us_copy', cmsAboutCopy),
-        updateSiteContent('about_story_image', cmsAboutImage),
-        updateSiteContent('contact_details', cmsContactDetails),
-        updateSiteContent('business_info', cmsBusinessInfo),
-        updateSiteContent('delivery_availability_disclosure', cmsDeliveryDisclosure),
-        updateSiteContent('grievance_officer', cmsGrievanceOfficer),
-        updateSiteContent('return_pickup_disclosure', cmsReturnPickupDisclosure),
+      const saveTasks: Promise<any>[] = [
         updatePaymentSettings(cmsPaymentSettings),
-      ]);
+      ];
+
+      // Safeguards: Only persist sections that hold valid, populated values
+      if (Array.isArray(cmsHeroSlides) && cmsHeroSlides.length > 0) {
+        saveTasks.push(updateSiteContent('hero_slides', cmsHeroSlides));
+      }
+      if (cmsAboutCopy && (cmsAboutCopy.en?.trim() || cmsAboutCopy.ne?.trim())) {
+        saveTasks.push(updateSiteContent('about_us_copy', cmsAboutCopy));
+      }
+      if (cmsAboutImage && typeof cmsAboutImage === 'string' && cmsAboutImage.trim()) {
+        saveTasks.push(updateSiteContent('about_story_image', cmsAboutImage.trim()));
+      }
+      if (
+        cmsContactDetails &&
+        (cmsContactDetails.phone?.en?.trim() ||
+          cmsContactDetails.email?.en?.trim() ||
+          cmsContactDetails.hours?.en?.trim())
+      ) {
+        saveTasks.push(updateSiteContent('contact_details', cmsContactDetails));
+      }
+      if (cmsBusinessInfo && Object.keys(cmsBusinessInfo).length > 0) {
+        saveTasks.push(updateSiteContent('business_info', cmsBusinessInfo));
+      }
+      if (cmsDeliveryDisclosure && (cmsDeliveryDisclosure.en?.trim() || cmsDeliveryDisclosure.ne?.trim())) {
+        saveTasks.push(updateSiteContent('delivery_availability_disclosure', cmsDeliveryDisclosure));
+      }
+      if (cmsGrievanceOfficer && (cmsGrievanceOfficer.officer_name?.trim() || cmsGrievanceOfficer.officer_phone?.trim())) {
+        saveTasks.push(updateSiteContent('grievance_officer', cmsGrievanceOfficer));
+      }
+      if (cmsReturnPickupDisclosure && (cmsReturnPickupDisclosure.en?.trim() || cmsReturnPickupDisclosure.ne?.trim())) {
+        saveTasks.push(updateSiteContent('return_pickup_disclosure', cmsReturnPickupDisclosure));
+      }
+
+      await Promise.all(saveTasks);
       showToast('Settings & Payment QR details saved successfully!', 'success');
     } catch (err) {
       console.error('Failed to save settings:', err);
